@@ -41,7 +41,7 @@
 需要 macOS 14+ 与 Xcode Command Line Tools。
 
 ```bash
-git clone https://github.com/<your-account>/codex-token-monitor.git
+git clone https://github.com/Naja404/codex-token-monitor.git
 cd codex-token-monitor
 swift run
 ```
