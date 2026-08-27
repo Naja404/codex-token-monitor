@@ -95,10 +95,6 @@ enum MenuBarUsageImage {
         let image = NSImage(size: size)
         image.lockFocus()
 
-        let background = NSBezierPath(roundedRect: NSRect(x: 0, y: 1, width: size.width, height: 20), xRadius: 4, yRadius: 4)
-        NSColor.black.withAlphaComponent(0.12).setFill()
-        background.fill()
-
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .medium),
             .foregroundColor: NSColor.black
