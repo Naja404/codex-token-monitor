@@ -24,13 +24,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let item = NSStatusBar.system.statusItem(withLength: 120)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
         statusItem = item
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 320, height: 346)
+        popover.contentSize = NSSize(width: 300, height: 304)
         popover.contentViewController = NSHostingController(
             rootView: MonitorView(model: model, onQuit: { [weak self] in self?.quit() })
         )
@@ -91,17 +91,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 enum MenuBarUsageImage {
     static func make(firstLine: String, secondLine: String) -> NSImage {
-        let size = NSSize(width: 116, height: 22)
-        let image = NSImage(size: size)
-        image.lockFocus()
-
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .medium),
             .foregroundColor: NSColor.black
         ]
+        let widestLine = max(
+            (firstLine as NSString).size(withAttributes: attributes).width,
+            (secondLine as NSString).size(withAttributes: attributes).width
+        )
+        let image = NSImage(size: NSSize(width: ceil(widestLine) + 6, height: 22))
+        image.lockFocus()
         // Explicit coordinates leave safe top/bottom padding; AppKit's multiline baseline can clip the first line.
-        firstLine.draw(at: NSPoint(x: 7, y: 10), withAttributes: attributes)
-        secondLine.draw(at: NSPoint(x: 7, y: 1), withAttributes: attributes)
+        firstLine.draw(at: NSPoint(x: 3, y: 10), withAttributes: attributes)
+        secondLine.draw(at: NSPoint(x: 3, y: 1), withAttributes: attributes)
 
         image.unlockFocus()
         image.isTemplate = true
@@ -224,7 +226,7 @@ struct MonitorView: View {
     @State private var editing = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "chart.bar.xaxis")
                     .foregroundStyle(.tint)
@@ -289,8 +291,8 @@ struct MonitorView: View {
                 }
             }
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(12)
+        .frame(width: 300)
         .onAppear { model.refresh() }
     }
 }
@@ -306,7 +308,7 @@ struct QuotaRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(window.name)
                     .font(.subheadline.weight(.medium))
@@ -319,7 +321,7 @@ struct QuotaRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
+        .padding(10)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.055))
@@ -358,7 +360,7 @@ struct QuotaPlaceholderRow: View {
     let label: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(label)
                     .font(.subheadline.weight(.medium))
@@ -373,7 +375,7 @@ struct QuotaPlaceholderRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
+        .padding(10)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.055))
