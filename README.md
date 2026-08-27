@@ -7,7 +7,7 @@
 <p align="center">在 macOS 菜单栏中实时查看 Codex 的 5 小时与每周额度。</p>
 
 <p align="center">
-  <img src="docs/images/menu-popover.png" width="346" alt="Codex Token Monitor 菜单栏与详情面板">
+  <img src="https://raw.githubusercontent.com/Naja404/codex-token-monitor/37479fea56cc835e2cdb10e664e7bff4384ff177/docs/images/menu-popover.png" width="340" alt="Codex Token Monitor 菜单栏与详情面板">
 </p>
 
 ## 功能
