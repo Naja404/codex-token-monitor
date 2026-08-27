@@ -27,6 +27,16 @@
 
 > 当前发布包面向 Apple Silicon（M1/M2/M3/M4）与 macOS 14 或更高版本。
 
+## 运行环境
+
+| 项目 | 已打包应用 | 从源码运行 |
+| --- | --- | --- |
+| 硬件 | Apple Silicon Mac（M1/M2/M3/M4） | Apple Silicon Mac（M1/M2/M3/M4） |
+| 系统 | macOS 14（Sonoma）或更高版本 | macOS 14（Sonoma）或更高版本 |
+| Codex | 本机需要已登录一次，以生成 `~/.codex/auth.json`；应用运行时不需要启动 Codex | 同左 |
+| 开发工具 | 不需要 | Xcode Command Line Tools（Swift 6） |
+| 网络 | 需要能够访问 OpenAI / ChatGPT 的服务 | 同左 |
+
 ## 数据与隐私
 
 应用只读取本机 `~/.codex/auth.json` 内由 Codex 登录保存的凭据，并请求 OpenAI 的 `https://chatgpt.com/backend-api/wham/usage` 来获取当前账号的额度窗口。
