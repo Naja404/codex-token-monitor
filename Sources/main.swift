@@ -410,7 +410,17 @@ struct ConversationStatsReader {
         })
 
         let latestItems = runSQLite(historyURL, """
-            SELECT thread_id || char(9) || item_type || char(9) || item_json
+            SELECT thread_id || char(9) || CASE
+                WHEN item_type = 'agentMessage' AND (
+                    lower(item_json) LIKE '%request_user_input%' OR
+                    lower(item_json) LIKE '%user input%' OR
+                    lower(item_json) LIKE '%approval%' OR
+                    lower(item_json) LIKE '%confirm%' OR
+                    item_json LIKE '%请提供%' OR
+                    item_json LIKE '%请输入%' OR
+                    item_json LIKE '%请选择%' OR
+                    item_json LIKE '%需要用户%'
+                ) THEN '1' ELSE '0' END
             FROM (
                 SELECT thread_id, item_type, item_json,
                        ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY rollout_ordinal DESC) AS row_number
@@ -419,22 +429,14 @@ struct ConversationStatsReader {
             WHERE row_number = 1;
             """)
         let itemPayloads = Dictionary(uniqueKeysWithValues: latestItems.compactMap { row -> (String, String)? in
-            let parts = row.split(separator: "\t", maxSplits: 2).map(String.init)
-            guard parts.count == 3, parts[1] == "agentMessage" else { return nil }
-            return (parts[0], parts[2])
+            let parts = row.split(separator: "\t", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { return nil }
+            return (parts[0], parts[1])
         })
 
         let runningIDs = activeThreads.keys.filter { statuses[$0] == "inProgress" }
         let needsInputIDs = runningIDs.filter { id in
-            guard let payload = itemPayloads[id]?.lowercased() else { return false }
-            return payload.contains("request_user_input") ||
-                payload.contains("user input") ||
-                payload.contains("approval") ||
-                payload.contains("confirm") ||
-                payload.contains("请提供") ||
-                payload.contains("请输入") ||
-                payload.contains("请选择") ||
-                payload.contains("需要用户")
+            itemPayloads[id] == "1"
         }
         let completed = activeThreads.filter { statuses[$0.key] == "completed" }
         let unread = unreadCompletedCount(completed)
@@ -497,9 +499,10 @@ struct ConversationStatsReader {
         task.standardError = Pipe()
         do {
             try task.run()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit()
             guard task.terminationStatus == 0 else { return [] }
-            return String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            return String(decoding: data, as: UTF8.self)
                 .split(whereSeparator: \.isNewline)
                 .map(String.init)
         } catch {
