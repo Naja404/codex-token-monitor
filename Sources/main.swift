@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         model.refresh()
         updateStatusTitle()
-        cancellable = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        cancellable = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.model.refresh()
                 self?.updateStatusTitle()
@@ -123,9 +123,11 @@ final class UsageModel: ObservableObject {
     @Published private(set) var databaseAvailable = false
     @Published private(set) var rateLimitStatus: RateLimitStatus = .loading
     @Published private(set) var conversationStats = ConversationStats()
+    @Published private(set) var lastRefreshAt: Date?
     var onRateLimitsUpdated: (() -> Void)?
 
     func refresh() {
+        lastRefreshAt = .now
         rateLimitStatus = .loading
         onRateLimitsUpdated?()
 
@@ -244,9 +246,16 @@ struct MonitorView: View {
                 Text("Codex Token Monitor")
                     .font(.headline)
                 Spacer()
-                Text("本地")
+                Text(model.lastRefreshAt?.formatted(date: .omitted, time: .shortened) ?? "未刷新")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button {
+                    model.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .help("立即刷新")
             }
 
             if editing {
