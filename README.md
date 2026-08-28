@@ -57,6 +57,8 @@ cd codex-token-monitor
 swift run
 ```
 
+这是菜单栏常驻应用，`swift run` 完成编译后会持续运行，不会回到终端提示符；请直接查看 macOS 菜单栏。终端出现“已启动”后，按 `Ctrl-C` 可退出。
+
 ## 发布新版本
 
 仓库已经包含 GitHub Actions 工作流。创建并推送 `v` 前缀标签即可自动构建 Apple Silicon 安装包、上传构建产物并创建 GitHub Release：
