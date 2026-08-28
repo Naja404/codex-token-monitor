@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 300, height: 430)
+        popover.contentSize = NSSize(width: 300, height: 304)
         popover.contentViewController = NSHostingController(
             rootView: MonitorView(model: model, onQuit: { [weak self] in self?.quit() })
         )
@@ -42,7 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.popover.performClose(nil)
-                self?.model.markCompletedConversationsRead()
             }
         }
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -50,7 +49,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.popover.performClose(nil)
-                self?.model.markCompletedConversationsRead()
             }
         }
         model.onRateLimitsUpdated = { [weak self] in self?.updateStatusTitle() }
@@ -69,7 +67,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
         if popover.isShown {
             popover.performClose(sender)
-            model.markCompletedConversationsRead()
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
@@ -122,7 +119,6 @@ final class UsageModel: ObservableObject {
     @Published private(set) var reportedTokens = 0
     @Published private(set) var databaseAvailable = false
     @Published private(set) var rateLimitStatus: RateLimitStatus = .loading
-    @Published private(set) var conversationStats = ConversationStats()
     @Published private(set) var lastRefreshAt: Date?
     var onRateLimitsUpdated: (() -> Void)?
 
@@ -135,7 +131,6 @@ final class UsageModel: ObservableObject {
         let result = reader.read()
         reportedTokens = result.tokens
         databaseAvailable = result.available
-        conversationStats = ConversationStatsReader().read()
 
         Task { [weak self] in
             let rateLimits = await DirectCodexUsageReader().read()
@@ -147,11 +142,6 @@ final class UsageModel: ObservableObject {
             }
             self.apply(rateLimits)
         }
-    }
-
-    func markCompletedConversationsRead() {
-        ConversationStatsReader.markCompletedConversationsRead()
-        conversationStats = ConversationStatsReader().read()
     }
 
     func useManualValues(fiveHour: QuotaWindow, weekly: QuotaWindow) {
@@ -282,12 +272,6 @@ struct MonitorView: View {
                     QuotaPlaceholderRow(label: "每周额度")
                 }
 
-                Divider()
-
-                ConversationStatsView(stats: model.conversationStats)
-
-                Divider()
-
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 3) {
                 Text(model.rateLimitStatus.title)
@@ -318,205 +302,6 @@ struct MonitorView: View {
         .padding(12)
         .frame(width: 300)
         .onAppear { model.refresh() }
-    }
-}
-
-struct ConversationStatsView: View {
-    let stats: ConversationStats
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("对话状态")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                if !stats.available {
-                    Text("等待本机数据")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            HStack(spacing: 8) {
-                ConversationStatTile(title: "运行中", value: stats.running, systemImage: "bolt.fill", color: .blue)
-                ConversationStatTile(title: "未读完成", value: stats.unreadCompleted, systemImage: "envelope.badge.fill", color: .orange)
-                ConversationStatTile(title: "需输入", value: stats.needsInput, systemImage: "hand.raised.fill", color: .red)
-            }
-            Text("“未读完成”按本监控上次关闭面板后新增的完成对话统计；“需输入”为本地状态估算。")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(10)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.primary.opacity(0.055))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        }
-    }
-}
-
-struct ConversationStatTile: View {
-    let title: String
-    let value: Int
-    let systemImage: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: systemImage)
-                .font(.caption)
-                .foregroundStyle(color)
-            Text("\(value)")
-                .font(.title3.monospacedDigit().weight(.semibold))
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct ConversationStatsReader {
-    private static let seenKey = "conversation.completed.lastSeenUpdatedAt"
-    private static let initializedKey = "conversation.completed.initialized"
-
-    func read() -> ConversationStats {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let stateURL = [
-            home.appending(path: ".codex/sqlite/state_5.sqlite"),
-            home.appending(path: ".codex/state_5.sqlite")
-        ].first(where: { FileManager.default.fileExists(atPath: $0.path()) })
-        let historyURL = home.appending(path: ".codex/thread_history_1.sqlite")
-        guard let stateURL, FileManager.default.fileExists(atPath: historyURL.path()) else {
-            return ConversationStats()
-        }
-
-        let threadRows = runSQLite(stateURL, "SELECT id || char(9) || updated_at FROM threads WHERE archived = 0;")
-        let activeThreads = Dictionary(uniqueKeysWithValues: threadRows.compactMap { row -> (String, Int64)? in
-            let parts = row.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2, let updatedAt = Int64(parts[1]) else { return nil }
-            return (parts[0], updatedAt)
-        })
-        guard !activeThreads.isEmpty else { return ConversationStats(available: true) }
-
-        let latestTurns = runSQLite(historyURL, """
-            SELECT thread_id || char(9) || status
-            FROM (
-                SELECT thread_id, status,
-                       ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY rollout_ordinal DESC) AS row_number
-                FROM thread_turns
-            )
-            WHERE row_number = 1;
-            """)
-        let statuses = Dictionary(uniqueKeysWithValues: latestTurns.compactMap { row -> (String, String)? in
-            let parts = row.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2 else { return nil }
-            return (parts[0], parts[1])
-        })
-
-        let latestItems = runSQLite(historyURL, """
-            SELECT thread_id || char(9) || CASE
-                WHEN item_type = 'agentMessage' AND (
-                    lower(item_json) LIKE '%request_user_input%' OR
-                    lower(item_json) LIKE '%user input%' OR
-                    lower(item_json) LIKE '%approval%' OR
-                    lower(item_json) LIKE '%confirm%' OR
-                    item_json LIKE '%请提供%' OR
-                    item_json LIKE '%请输入%' OR
-                    item_json LIKE '%请选择%' OR
-                    item_json LIKE '%需要用户%'
-                ) THEN '1' ELSE '0' END
-            FROM (
-                SELECT thread_id, item_type, item_json,
-                       ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY rollout_ordinal DESC) AS row_number
-                FROM thread_items
-            )
-            WHERE row_number = 1;
-            """)
-        let itemPayloads = Dictionary(uniqueKeysWithValues: latestItems.compactMap { row -> (String, String)? in
-            let parts = row.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2 else { return nil }
-            return (parts[0], parts[1])
-        })
-
-        let runningIDs = activeThreads.keys.filter { statuses[$0] == "inProgress" }
-        let needsInputIDs = runningIDs.filter { id in
-            itemPayloads[id] == "1"
-        }
-        let completed = activeThreads.filter { statuses[$0.key] == "completed" }
-        let unread = unreadCompletedCount(completed)
-
-        return ConversationStats(
-            running: runningIDs.count - needsInputIDs.count,
-            unreadCompleted: unread,
-            needsInput: needsInputIDs.count,
-            available: true
-        )
-    }
-
-    static func markCompletedConversationsRead() {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let stateURL = [
-            home.appending(path: ".codex/sqlite/state_5.sqlite"),
-            home.appending(path: ".codex/state_5.sqlite")
-        ].first(where: { FileManager.default.fileExists(atPath: $0.path()) })
-        guard let stateURL else { return }
-        let rows = runSQLite(stateURL, "SELECT id || char(9) || updated_at FROM threads WHERE archived = 0;")
-        var seen = readSeen()
-        for row in rows {
-            let parts = row.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2, let updatedAt = Int64(parts[1]) else { continue }
-            seen[parts[0]] = updatedAt
-        }
-        UserDefaults.standard.set(seen, forKey: seenKey)
-    }
-
-    private func unreadCompletedCount(_ completed: [String: Int64]) -> Int {
-        let defaults = UserDefaults.standard
-        var seen = Self.readSeen()
-        if !defaults.bool(forKey: Self.initializedKey) {
-            seen = completed
-            defaults.set(true, forKey: Self.initializedKey)
-            defaults.set(seen, forKey: Self.seenKey)
-            return 0
-        }
-        return completed.reduce(into: 0) { result, entry in
-            if entry.value > (seen[entry.key] ?? 0) { result += 1 }
-        }
-    }
-
-    private static func readSeen() -> [String: Int64] {
-        (UserDefaults.standard.dictionary(forKey: seenKey) as? [String: NSNumber])?.reduce(into: [:]) {
-            $0[$1.key] = $1.value.int64Value
-        } ?? [:]
-    }
-
-    private func runSQLite(_ url: URL, _ query: String) -> [String] {
-        Self.runSQLite(url, query)
-    }
-
-    private static func runSQLite(_ url: URL, _ query: String) -> [String] {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        task.arguments = ["-readonly", "-noheader", "-separator", "\t", url.path(), query]
-        let output = Pipe()
-        task.standardOutput = output
-        task.standardError = Pipe()
-        do {
-            try task.run()
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
-            guard task.terminationStatus == 0 else { return [] }
-            return String(decoding: data, as: UTF8.self)
-                .split(whereSeparator: \.isNewline)
-                .map(String.init)
-        } catch {
-            return []
-        }
     }
 }
 
@@ -673,13 +458,6 @@ struct LiveRateLimitWindow: Sendable {
 struct LiveRateLimits: Sendable {
     let primary: LiveRateLimitWindow
     let secondary: LiveRateLimitWindow
-}
-
-struct ConversationStats: Equatable {
-    var running = 0
-    var unreadCompleted = 0
-    var needsInput = 0
-    var available = false
 }
 
 struct DirectCodexUsageReader {
