@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.popover.performClose(nil)
+                self?.model.markCompletedConversationsRead()
             }
         }
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -48,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.popover.performClose(nil)
+                self?.model.markCompletedConversationsRead()
             }
         }
         model.onRateLimitsUpdated = { [weak self] in self?.updateStatusTitle() }
