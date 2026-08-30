@@ -95,4 +95,4 @@ git push origin v1.0.0
 
 ## License
 
-暂未指定许可证。发布前请根据你的分发计划添加许可证文件。
+[MIT License](LICENSE) © 2026 Naja404。
