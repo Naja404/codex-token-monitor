@@ -767,8 +767,8 @@ extension View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         return self
             .background(shape.fill(Color.primary.opacity(0.045)))
-            .overlay(shape.fill(tint.opacity(0.065)))
-            .overlay(shape.stroke(Color.white.opacity(0.30), lineWidth: 0.8))
+            .overlay(shape.fill(tint.opacity(0.065)).allowsHitTesting(false))
+            .overlay(shape.stroke(Color.white.opacity(0.30), lineWidth: 0.8).allowsHitTesting(false))
             .shadow(color: .black.opacity(0.08), radius: 5, y: 2)
     }
 }
