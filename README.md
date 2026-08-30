@@ -7,14 +7,16 @@
 <p align="center">在 macOS 菜单栏中实时查看 Codex 的 5 小时与每周额度。</p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Naja404/codex-token-monitor/37479fea56cc835e2cdb10e664e7bff4384ff177/docs/images/menu-popover.png" width="340" alt="Codex Token Monitor 菜单栏与详情面板">
+  <img src="docs/images/menu-popover.png" width="380" alt="Codex Token Monitor 菜单栏与玻璃风格详情面板">
 </p>
 
 ## 功能
 
 - 菜单栏双行显示：5 小时 / 每周剩余额度与下次重置时间。
 - 点按菜单栏项目查看进度条、精确重置时间和累计 session token。
-- 每分钟自动刷新，也会在详情面板打开时刷新。
+- 每 30 秒自动刷新，也会在详情面板打开时刷新；支持手动立即刷新。
+- 可配置回写 API，将当前 5 小时与每周剩余额度发送到你的服务。
+- 自动回写默认关闭，可设置 1–60 分钟间隔；连续失败 10 次会自动暂停并提示。
 - 直接使用本机 Codex 登录凭据请求 OpenAI 额度，不经过第三方 Adapter。
 - 使用 macOS 系统菜单栏模板颜色，自动适应浅色和深色外观。
 
@@ -72,6 +74,24 @@ git push origin v1.0.0
 - 本工具显示 ChatGPT/Codex 订阅额度，不是 OpenAI API key 的 API 限流数据。
 - 此额度接口未作为公开稳定 SDK 契约发布；OpenAI 或 Codex 的内部实现变化可能影响读取结果。
 - 应用使用 ad-hoc 签名，尚未经过 Apple 公证。
+
+## 回写 Token 余量
+
+在详情面板点击“配置回写 API”，填写 API 地址、Bearer 和 Codex Key ID，再点击“保存配置”。“验证连接”会发送一次当前额度请求确认接口和凭据有效；“立即回写”用于手动发送。应用使用 `POST` 请求并发送以下 JSON（Bearer 只放在 `Authorization` 请求头，不会进入 body）：
+
+```json
+{
+  "codex_key_id": "codex-8761b8cc2e114f59",
+  "five_hour": {
+    "remaining_percent": 27,
+    "reset_time": "20:50"
+  },
+  "seven_day": {
+    "remaining_percent": 82,
+    "reset_date": "9月6日 16:48"
+  }
+}
+```
 
 ## License
 
