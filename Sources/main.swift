@@ -73,11 +73,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePopover(_ sender: Any?) {
-        guard let button = statusItem?.button else { return }
+        // On a secondary display, AppKit passes the status-bar button that was
+        // actually clicked. Using statusItem.button can still refer to another display.
+        guard let button = (sender as? NSStatusBarButton) ?? statusItem?.button else { return }
         if popover.isShown {
             popover.performClose(sender)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            positionPopoverOnClickedScreen(anchorButton: button)
+        }
+    }
+
+    private func positionPopoverOnClickedScreen(anchorButton: NSStatusBarButton) {
+        let clickLocation = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(clickLocation) }) else { return }
+
+        // NSPopover can initially use the primary-display coordinates when the
+        // first click happens in another display's menu bar. Move its window
+        // after AppKit creates it, using the real global mouse location instead.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.popover.contentViewController?.view.window else { return }
+
+            let margin: CGFloat = 8
+            let visibleFrame = screen.visibleFrame
+            let anchorRect = anchorButton.convert(anchorButton.bounds, to: nil)
+            let anchorFrame = anchorButton.window?.convertToScreen(anchorRect)
+            let arrowOffset = anchorFrame.map { $0.midX - window.frame.minX }
+            let preferredOffset = arrowOffset.flatMap { (0...window.frame.width).contains($0) ? $0 : nil }
+            let originX = min(
+                max(clickLocation.x - (preferredOffset ?? window.frame.width / 2), visibleFrame.minX + margin),
+                visibleFrame.maxX - window.frame.width - margin
+            )
+            let originY = visibleFrame.maxY - window.frame.height
+            window.setFrameOrigin(NSPoint(x: originX, y: originY))
         }
     }
 
