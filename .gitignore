@@ -2,3 +2,5 @@
 .build/
 dist/
 *.zip
+windows/**/bin/
+windows/**/obj/

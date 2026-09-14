@@ -4,7 +4,7 @@
   <img src="Assets/AppIcon.png" width="128" alt="Codex Token Monitor 应用图标">
 </p>
 
-<p align="center">在 macOS 菜单栏中实时查看 Codex 的 5 小时与每周额度。</p>
+<p align="center">在 macOS 菜单栏或 Windows 系统托盘中查看 Codex 订阅额度。</p>
 
 <p align="center">
   <img src="docs/images/menu-popover.png" width="380" alt="Codex Token Monitor 菜单栏与玻璃风格详情面板">
@@ -12,41 +12,63 @@
 
 ## 功能
 
-- 菜单栏双行显示：5 小时 / 每周剩余额度与下次重置时间。
-- 点按菜单栏项目查看进度条、精确重置时间和累计 session token。
-- 每 30 秒自动刷新，也会在详情面板打开时刷新；支持手动立即刷新。
+- macOS 菜单栏双行显示 5 小时 / 每周余量与重置时间；Windows 托盘数字显示余量，悬浮提示注明两个窗口。
+- 点击菜单栏或托盘图标查看账户额度、进度条、重置时间和附加模型额度。
+- 每 30 秒自动刷新，支持手动立即刷新。
 - 可配置回写 API，将当前 5 小时与每周剩余额度发送到你的服务。
 - 自动回写默认关闭，可设置 1–60 分钟间隔；连续失败 10 次会自动暂停并提示。
 - 直接使用本机 Codex 登录凭据请求 OpenAI 额度，不经过第三方 Adapter。
-- 使用 macOS 系统菜单栏模板颜色，自动适应浅色和深色外观。
+- macOS 使用系统菜单栏模板颜色；Windows 使用独立设置窗口与当前用户加密的 Bearer 存储。
 
 ## 安装
 
-1. 在 [Releases](../../releases) 下载 `Codex-Token-Monitor-macOS-arm64.zip`。
+在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
+
+| 平台 | v1.2.0 下载 | 使用方式 |
+| --- | --- | --- |
+| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.2.0/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.2.0/Codex-Token-Monitor-Windows-x64.zip) | 解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+
+### macOS
+
+1. 下载 `Codex-Token-Monitor-macOS-arm64.zip`。
 2. 解压后，将 `Codex Token Monitor.app` 拖入“应用程序”。
 3. 首次打开如被 Gatekeeper 拦截，请在 Finder 中右键应用，选择“打开”。
 4. 在此 Mac 上登录 Codex 后启动应用；菜单栏会显示真实额度。
 
-> 当前发布包面向 Apple Silicon（M1/M2/M3/M4）与 macOS 14 或更高版本。
+### Windows
+
+1. 在 Windows 本机使用 ChatGPT 账号登录 Codex，生成 `%USERPROFILE%\.codex\auth.json`。
+2. 解压 Windows ZIP 后运行 `CodexTokenMonitor.exe`，图标位于任务栏右下角（可能在隐藏图标区域）。
+3. 点击图标查看详情，失焦或按 Escape 收起；右键提供刷新、回写设置与退出。
+4. 托盘数字优先显示账户 5 小时余量，缺失时显示周余量；悬浮提示注明两者。
+
+Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放、DPAPI 配置恢复仍需实机验收。上方截图为旧版 macOS 界面，尚未包含套餐标签及附加额度；Windows 外观不同。
 
 ## 运行环境
 
-| 项目 | 已打包应用 | 从源码运行 |
+| 项目 | macOS | Windows |
 | --- | --- | --- |
-| 硬件 | Apple Silicon Mac（M1/M2/M3/M4） | Apple Silicon Mac（M1/M2/M3/M4） |
-| 系统 | macOS 14（Sonoma）或更高版本 | macOS 14（Sonoma）或更高版本 |
-| Codex | 本机需要已登录一次，以生成 `~/.codex/auth.json`；应用运行时不需要启动 Codex | 同左 |
-| 开发工具 | 不需要 | Xcode Command Line Tools（Swift 6） |
-| 网络 | 需要能够访问 OpenAI / ChatGPT 的服务 | 同左 |
+| 硬件 | Apple Silicon Mac | Intel / AMD x64 PC |
+| 系统 | macOS 14（Sonoma）或更高版本 | Windows 10/11 |
+| 登录凭据 | `~/.codex/auth.json` | `%USERPROFILE%\.codex\auth.json`，支持 `CODEX_HOME` |
+| 使用发布包 | 不需要开发工具 | 不需要开发工具或另装 .NET |
+| 从源码构建 | Swift 6 / Xcode Command Line Tools | .NET 10 SDK |
+| 网络 | 能够访问 OpenAI / ChatGPT 及自行配置的回写服务 | 同左 |
+
+## Windows 版（新增）
+
+新增 Windows 10/11 x64 托盘应用，支持套餐识别、额度刷新、附加模型额度与定时回写。免安装 ZIP 自带 .NET 运行时。使用方式、构建命令和实机验收项见 [Windows 说明](windows/README.md)。Windows GUI 仍需实机验证。
 
 ## 数据与隐私
 
-应用只读取本机 `~/.codex/auth.json` 内由 Codex 登录保存的凭据，并请求 OpenAI 的 `https://chatgpt.com/backend-api/wham/usage` 来获取当前账号的额度窗口。
+应用读取本机 Codex `auth.json` 内保存的 ChatGPT 登录凭据，并请求 OpenAI 的 `https://chatgpt.com/backend-api/wham/usage` 获取当前账号额度。读取时不要求 Codex 窗口保持开启，但凭据必须有效。Windows 不会自动读取 WSL、其他设备或仅存于凭据库中的登录信息；HTTP 401 时请重新登录 Codex。
 
 - 不读取或上传你的提示词、代码或聊天内容。
 - 不写入或修改 Codex 凭据。
 - 不使用第三方 Adapter 或中转服务。
 - 未登录、凭据失效或接口不可用时，界面显示占位符。
+- Windows 配置保存在 `%LOCALAPPDATA%\CodexTokenMonitor\settings.json`，Bearer 使用 DPAPI 当前用户加密；macOS 配置使用本机 UserDefaults。
 
 ### 套餐与额度识别
 
@@ -61,6 +83,8 @@
 
 ## 从源码运行
 
+### macOS
+
 需要 macOS 14+ 与 Xcode Command Line Tools。
 
 ```bash
@@ -71,20 +95,33 @@ swift run
 
 这是菜单栏常驻应用，`swift run` 完成编译后会持续运行，不会回到终端提示符；请直接查看 macOS 菜单栏。终端出现“已启动”后，按 `Ctrl-C` 可退出。
 
+### Windows
+
+克隆仓库后，在 Windows 上安装 .NET 10 SDK，执行：
+
+```powershell
+dotnet run --project windows/Checks -c Release
+dotnet run --project windows/App -c Release
+```
+
+构建免安装 EXE 和实机验收清单见 [Windows README](windows/README.md)。
+
 ## 发布新版本
 
-仓库已经包含 GitHub Actions 工作流。创建并推送 `v` 前缀标签即可自动构建 Apple Silicon 安装包、上传构建产物并创建 GitHub Release：
+更新 `Packaging/Info.plist`、`windows/App/App.csproj` 及 Windows manifest 的版本后，推送尚未使用的 `v` 前缀标签。GitHub Actions 会构建 macOS arm64 和 Windows x64 ZIP，并添加到同一 Release。Windows 附件会在 macOS Release 创建及 Windows 构建成功后上传。
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+# 示例：使用尚未发布的新版本号
+git tag v1.2.1
+git push origin v1.2.1
 ```
 
 ## 已知限制
 
 - 本工具显示 ChatGPT/Codex 订阅额度，不是 OpenAI API key 的 API 限流数据。
 - 此额度接口未作为公开稳定 SDK 契约发布；OpenAI 或 Codex 的内部实现变化可能影响读取结果。
-- 应用使用 ad-hoc 签名，尚未经过 Apple 公证。
+- macOS 使用 ad-hoc 签名，尚未经过 Apple 公证；Windows EXE 尚未进行代码签名。
+- Windows 首版暂不提供手动额度编辑、MSI 安装器或原生 ARM64 包；托盘交互和多屏定位仍需实机验收。
 
 ## 回写 Token 余量
 

@@ -1,0 +1,36 @@
+name: Windows build
+
+on:
+  push:
+    branches: ['main']
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Verify quota parsing and write-back policy
+        run: dotnet run --project windows/Checks -c Release
+      - name: Publish self-contained Windows x64 app
+        run: dotnet publish windows/App/App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o dist/windows-x64
+      - name: Package portable app
+        shell: pwsh
+        run: |
+          Copy-Item windows/README.md dist/windows-x64/README.md
+          Copy-Item LICENSE dist/windows-x64/LICENSE
+          Compress-Archive -Path dist/windows-x64/* -DestinationPath dist/Codex-Token-Monitor-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Codex-Token-Monitor-Windows-x64
+          path: dist/Codex-Token-Monitor-Windows-x64.zip

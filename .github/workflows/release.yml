@@ -1,4 +1,4 @@
-name: Release macOS app
+name: Release macOS and Windows apps
 
 on:
   push:
@@ -10,6 +10,23 @@ permissions:
   contents: write
 
 jobs:
+  windows:
+    uses: ./.github/workflows/windows.yml
+
+  windows-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [release, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Codex-Token-Monitor-Windows-x64
+          path: dist
+      - name: Attach Windows ZIP to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/Codex-Token-Monitor-Windows-x64.zip --repo "$GITHUB_REPOSITORY"
+
   release:
     runs-on: macos-15
     steps:
