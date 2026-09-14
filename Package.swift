@@ -8,6 +8,10 @@ let package = Package(
         .executableTarget(
             name: "CodexTokenMonitor",
             path: "Sources"
+        ),
+        .testTarget(
+            name: "CodexTokenMonitorTests",
+            dependencies: ["CodexTokenMonitor"]
         )
     ]
 )

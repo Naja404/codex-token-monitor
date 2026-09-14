@@ -32,13 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 300, height: 304)
+        popover.contentSize = NSSize(width: 300, height: 380)
         popover.contentViewController = NSHostingController(
             rootView: MonitorView(
                 model: model,
                 onQuit: { [weak self] in self?.quit() },
                 onWriteBackSettingsVisibilityChanged: { [weak self] visible in
-                    self?.popover.contentSize = NSSize(width: 300, height: visible ? 600 : 304)
+                    self?.popover.contentSize = NSSize(width: 300, height: visible ? 676 : 380)
                 }
             )
         )
@@ -153,6 +153,8 @@ enum MenuBarUsageImage {
 final class UsageModel: ObservableObject {
     @Published private(set) var fiveHour: QuotaWindow?
     @Published private(set) var weekly: QuotaWindow?
+    @Published private(set) var planName = "套餐未识别"
+    @Published private(set) var additionalLimits: [NamedRateLimits] = []
     @Published private(set) var reportedTokens = 0
     @Published private(set) var databaseAvailable = false
     @Published private(set) var rateLimitStatus: RateLimitStatus = .loading
@@ -185,17 +187,23 @@ final class UsageModel: ObservableObject {
             let rateLimits = await DirectCodexUsageReader().read()
             guard let self else { return }
             guard let rateLimits else {
+                self.fiveHour = nil
+                self.weekly = nil
+                self.planName = "套餐未识别"
+                self.additionalLimits = []
                 self.rateLimitStatus = .unavailable
                 self.onRateLimitsUpdated?()
                 return
             }
             self.apply(rateLimits)
+            self.performScheduledWriteBack()
         }
     }
 
     func useManualValues(fiveHour: QuotaWindow, weekly: QuotaWindow) {
         self.fiveHour = fiveHour
         self.weekly = weekly
+        additionalLimits = []
         rateLimitStatus = .manual
         onRateLimitsUpdated?()
     }
@@ -210,7 +218,8 @@ final class UsageModel: ObservableObject {
     func performScheduledWriteBack() {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: "writeBackEnabled"), !writeBackPaused,
-              !writeBackTaskInFlight else { return }
+              !writeBackTaskInFlight, rateLimitStatus == .live,
+              fiveHour != nil, weekly != nil else { return }
         let interval = max(1, defaults.integer(forKey: "writeBackIntervalMinutes"))
         let lastAttempt = defaults.double(forKey: "writeBackLastAttemptAt")
         guard lastAttempt == 0 || Date().timeIntervalSince1970 - lastAttempt >= Double(interval * 60) else {
@@ -252,8 +261,8 @@ final class UsageModel: ObservableObject {
         }
         guard !trimmedBearer.isEmpty else { return .failure("请填写 Bearer") }
         guard !trimmedKeyID.isEmpty else { return .failure("请填写 Codex Key ID") }
-        guard let fiveHour, let weekly else {
-            return .failure("额度尚未读取完成，请稍后重试")
+        guard rateLimitStatus == .live, let fiveHour, let weekly else {
+            return .failure("回写需要实时账户额度同时提供 5 小时和每周窗口")
         }
 
         let payload = WriteBackPayload(
@@ -303,8 +312,10 @@ final class UsageModel: ObservableObject {
     }()
 
     private func apply(_ rateLimits: LiveRateLimits) {
-        fiveHour = QuotaWindow.from(rateLimit: rateLimits.primary, name: "5 小时额度")
-        weekly = QuotaWindow.from(rateLimit: rateLimits.secondary, name: "每周额度")
+        fiveHour = rateLimits.primary.map { QuotaWindow.from(rateLimit: $0, name: "5 小时额度") }
+        weekly = rateLimits.secondary.map { QuotaWindow.from(rateLimit: $0, name: "每周额度") }
+        planName = rateLimits.planName
+        additionalLimits = rateLimits.additional
         rateLimitStatus = .live
         onRateLimitsUpdated?()
     }
@@ -403,7 +414,7 @@ private struct WriteBackPayload: Encodable {
     }
 }
 
-enum RateLimitStatus {
+enum RateLimitStatus: Equatable {
     case loading
     case live
     case unavailable
@@ -569,17 +580,17 @@ struct MonitorView: View {
                 if let fiveHour = model.fiveHour {
                     QuotaRow(window: fiveHour)
                 } else {
-                    QuotaPlaceholderRow(label: "5 小时额度")
+                    QuotaPlaceholderRow(label: "5 小时额度", status: model.rateLimitStatus)
                 }
                 if let weekly = model.weekly {
                     QuotaRow(window: weekly)
                 } else {
-                    QuotaPlaceholderRow(label: "每周额度")
+                    QuotaPlaceholderRow(label: "每周额度", status: model.rateLimitStatus)
                 }
 
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 3) {
-                Text(model.rateLimitStatus.title)
+                Text("\(model.planName) · \(model.rateLimitStatus.title)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(model.rateLimitStatus.detail)
@@ -596,6 +607,22 @@ struct MonitorView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if model.additionalLimits.isEmpty {
+                            Text(model.rateLimitStatus == .live ? "接口未提供附加模型额度" : "附加模型额度：—")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(Array(model.additionalLimits.enumerated()), id: \.offset) { _, limit in
+                            Text("附加额度 · \(limit.name)").fontWeight(.medium)
+                            Text(limit.summary).foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.caption)
+                .frame(height: 64)
 
                 HStack {
                     Button {
@@ -877,6 +904,7 @@ struct QuotaProgressBar: View {
 
 struct QuotaPlaceholderRow: View {
     let label: String
+    let status: RateLimitStatus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -888,9 +916,10 @@ struct QuotaPlaceholderRow: View {
                     .font(.subheadline.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            ProgressView()
-                .controlSize(.small)
-            Text("等待 Codex 返回实时额度")
+            if status == .loading {
+                ProgressView().controlSize(.small)
+            }
+            Text(status == .live ? "接口未提供此窗口" : status == .loading ? "等待 Codex 返回实时额度" : "暂未读取到额度")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -960,8 +989,26 @@ struct LiveRateLimitWindow: Sendable {
 }
 
 struct LiveRateLimits: Sendable {
-    let primary: LiveRateLimitWindow
-    let secondary: LiveRateLimitWindow
+    let primary: LiveRateLimitWindow?
+    let secondary: LiveRateLimitWindow?
+    let planName: String
+    let additional: [NamedRateLimits]
+}
+
+struct NamedRateLimits: Sendable {
+    let name: String
+    let fiveHour: LiveRateLimitWindow?
+    let weekly: LiveRateLimitWindow?
+
+    var summary: String {
+        func describe(_ window: LiveRateLimitWindow?) -> String {
+            guard let window else { return "未提供" }
+            let reset = Date(timeIntervalSince1970: TimeInterval(window.resetsAt))
+                .formatted(.dateTime.month().day().hour().minute())
+            return "\(100 - window.usedPercent)% 剩余，重置 \(reset)"
+        }
+        return "5 小时：\(describe(fiveHour))\n每周：\(describe(weekly))"
+    }
 }
 
 struct DirectCodexUsageReader {
@@ -983,9 +1030,7 @@ struct DirectCodexUsageReader {
             guard let response = response as? HTTPURLResponse,
                   response.statusCode == 200 else { return nil }
             let payload = try JSONDecoder().decode(CodexWhamUsage.self, from: data)
-            guard let primary = payload.rateLimit.primaryWindow?.asLiveWindow,
-                  let secondary = payload.rateLimit.secondaryWindow?.asLiveWindow else { return nil }
-            return LiveRateLimits(primary: primary, secondary: secondary)
+            return payload.liveRateLimits
         } catch {
             return nil
         }
@@ -1006,20 +1051,74 @@ private struct CodexAuth: Decodable {
     }
 }
 
-private struct CodexWhamUsage: Decodable {
-    let rateLimit: RateLimit
+struct CodexWhamUsage: Decodable {
+    let planType: String?
+    let rateLimit: RateLimit?
+    let additionalRateLimits: [AdditionalRateLimit]?
 
     enum CodingKeys: String, CodingKey {
+        case planType = "plan_type"
         case rateLimit = "rate_limit"
+        case additionalRateLimits = "additional_rate_limits"
+    }
+
+    var planName: String {
+        switch planType?.lowercased() {
+        case "free": return "Free"
+        case "plus": return "Plus"
+        case "pro": return "Pro"
+        case "team", "business": return "Business（企业工作区）"
+        case "enterprise": return "Enterprise（企业）"
+        case "edu": return "Edu（教育）"
+        case .some(let value) where !value.isEmpty: return "未知套餐（\(planType!)）"
+        default: return "套餐未识别"
+        }
+    }
+
+    var liveRateLimits: LiveRateLimits? {
+        guard planType != nil || rateLimit != nil || additionalRateLimits != nil else { return nil }
+        return LiveRateLimits(
+            primary: rateLimit?.window(seconds: 18000),
+            secondary: rateLimit?.window(seconds: 604800),
+            planName: planName,
+            additional: (additionalRateLimits ?? []).enumerated().map { index, limit in
+                let labels = [limit.limitName, limit.normalModelSlug, limit.meteredFeature]
+                    .compactMap { $0 }.filter { !$0.isEmpty }
+                return NamedRateLimits(
+                    name: labels.isEmpty ? "未命名附加额度 \(index + 1)" : labels.joined(separator: " · "),
+                    fiveHour: limit.rateLimit?.window(seconds: 18000),
+                    weekly: limit.rateLimit?.window(seconds: 604800)
+                )
+            }
+        )
     }
 
     struct RateLimit: Decodable {
         let primaryWindow: Window?
         let secondaryWindow: Window?
 
+        func window(seconds: Int64) -> LiveRateLimitWindow? {
+            [primaryWindow, secondaryWindow].compactMap { $0 }
+                .first { $0.limitWindowSeconds == seconds && $0.asLiveWindow != nil }?.asLiveWindow
+        }
+
         enum CodingKeys: String, CodingKey {
             case primaryWindow = "primary_window"
             case secondaryWindow = "secondary_window"
+        }
+    }
+
+    struct AdditionalRateLimit: Decodable {
+        let rateLimit: RateLimit?
+        let limitName: String?
+        let normalModelSlug: String?
+        let meteredFeature: String?
+
+        enum CodingKeys: String, CodingKey {
+            case rateLimit = "rate_limit"
+            case limitName = "limit_name"
+            case normalModelSlug = "normal_model_slug"
+            case meteredFeature = "metered_feature"
         }
     }
 
