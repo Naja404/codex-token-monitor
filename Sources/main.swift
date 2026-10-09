@@ -14,7 +14,7 @@ struct CodexTokenMonitorApp: App {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let model = UsageModel()
     private let popover = NSPopover()
@@ -32,8 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
 
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentSize = NSSize(width: 300, height: 380)
-        popover.contentViewController = NSHostingController(
+        popover.contentViewController = MonitorHostingController(
             rootView: MonitorView(
                 model: model,
                 onQuit: { [weak self] in self?.quit() },
@@ -80,8 +81,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(sender)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            // Supply a native bar at both scopes: an accessory popover is not
+            // guaranteed to participate in SwiftUI's window-scene discovery.
+            let bar = popover.contentViewController?.touchBar
+            NSApp.touchBar = bar
+            popover.contentViewController?.view.window?.touchBar = bar
+            (popover.contentViewController as? MonitorHostingController)?.setTouchBarVisible(true)
+            // App-scoped Touch Bar content requires this accessory app to be active.
+            NSApp.activate(ignoringOtherApps: true)
+            popover.contentViewController?.view.window?.makeKey()
             positionPopoverOnClickedScreen(anchorButton: button)
         }
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        (popover.contentViewController as? MonitorHostingController)?.setTouchBarVisible(false)
+        NSApp.touchBar = nil
     }
 
     private func positionPopoverOnClickedScreen(anchorButton: NSStatusBarButton) {
@@ -114,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateStatusTitle() {
+        (popover.contentViewController as? MonitorHostingController)?.updateQuotaTouchBar()
         let fiveHour = model.fiveHour.map {
             "5小时 \(Int($0.remainingPercent.rounded()))% · \($0.resetsAt.formatted(date: .omitted, time: .shortened))"
         } ?? "5小时 — · —"
@@ -124,6 +140,304 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = MenuBarUsageImage.make(firstLine: fiveHour, secondLine: weekly)
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "\(fiveHour)；\(weekly)"
+    }
+}
+
+@MainActor
+final class MonitorHostingController: NSHostingController<MonitorView> {
+    private let fiveHourItem = makeQuotaItem("codex.quota.fiveHour", width: 146)
+    private let weeklyItem = makeQuotaItem("codex.quota.weekly", width: 180)
+    private let catView = TouchBarRainbowCatView(frame: NSRect(x: 0, y: 0, width: 92, height: 30))
+    private var touchBarVisible = false
+    private lazy var refreshItem = NSButtonTouchBarItem(
+        identifier: .init("codex.quota.refresh"), title: "刷新", target: self, action: #selector(refreshQuota)
+    )
+
+    override func makeTouchBar() -> NSTouchBar? {
+        let bar = NSTouchBar()
+        let catItem = NSCustomTouchBarItem(identifier: .init("codex.quota.cat"))
+        catItem.view = catView
+        catItem.visibilityPriority = .low
+        bar.defaultItemIdentifiers = [catItem.identifier, fiveHourItem.identifier, weeklyItem.identifier, refreshItem.identifier]
+        bar.templateItems = [catItem, fiveHourItem, weeklyItem, refreshItem]
+        updateQuotaTouchBar()
+        return bar
+    }
+
+    func updateQuotaTouchBar() {
+        let model = rootView.model
+        update(fiveHourItem, content: TouchBarQuotaContent(
+            label: "5小时", window: model.fiveHour, status: model.rateLimitStatus, includesDate: false
+        ))
+        update(weeklyItem, content: TouchBarQuotaContent(
+            label: "每周", window: model.weekly, status: model.rateLimitStatus, includesDate: true
+        ))
+        refreshItem.title = model.rateLimitStatus == .loading ? "读取中" : "刷新"
+        refreshItem.isEnabled = model.rateLimitStatus != .loading
+        catView.update(activity: TouchBarCatActivity(fiveHour: model.fiveHour, weekly: model.weekly,
+                                                     status: model.rateLimitStatus),
+                       visible: touchBarVisible,
+                       reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    func setTouchBarVisible(_ visible: Bool) {
+        touchBarVisible = visible
+        updateQuotaTouchBar()
+    }
+
+    @objc private func refreshQuota() {
+        guard rootView.model.rateLimitStatus != .loading else { return }
+        rootView.model.refresh()
+    }
+
+    private static func makeQuotaItem(_ identifier: String, width: CGFloat) -> NSCustomTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: .init(identifier))
+        let chart = TouchBarQuotaChartView(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+        chart.widthAnchor.constraint(equalToConstant: width).isActive = true
+        chart.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        item.view = chart
+        return item
+    }
+
+    private func update(_ item: NSCustomTouchBarItem, content: TouchBarQuotaContent) {
+        (item.view as? TouchBarQuotaChartView)?.content = content
+    }
+}
+
+@MainActor
+final class TouchBarQuotaChartView: NSView {
+    var content: TouchBarQuotaContent? {
+        didSet {
+            needsDisplay = true
+            setAccessibilityElement(true)
+            setAccessibilityRole(.staticText)
+            setAccessibilityLabel(content.map { "\($0.title)，\($0.detail)" })
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let content else { return }
+        NSColor(white: 0.09, alpha: 1).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 5, yRadius: 5).fill()
+        (content.title as NSString).draw(at: NSPoint(x: 8, y: 17), withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ])
+        (content.detail as NSString).draw(at: NSPoint(x: 8, y: 0), withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
+            .foregroundColor: NSColor(white: 0.72, alpha: 1)
+        ])
+        let track = NSRect(x: 8, y: 12, width: max(0, bounds.width - 16), height: 3)
+        NSColor(white: 0.23, alpha: 1).setFill()
+        NSBezierPath(roundedRect: track, xRadius: 1, yRadius: 1).fill()
+        if let fraction = content.remainingFraction, fraction > 0 {
+            content.chartColor.setFill()
+            let fill = NSRect(x: track.minX, y: track.minY, width: track.width * fraction, height: track.height)
+            NSBezierPath(roundedRect: fill, xRadius: 1, yRadius: 1).fill()
+        }
+    }
+}
+
+enum TouchBarCatActivity {
+    case unknown, sleepy, calm, playful, energetic
+
+    init(fiveHour: QuotaWindow?, weekly: QuotaWindow?, status: RateLimitStatus) {
+        guard status == .live || status == .manual,
+              let remaining = [fiveHour, weekly].compactMap({ $0?.remainingPercent }).min() else {
+            self = .unknown
+            return
+        }
+        switch remaining {
+        case 80...: self = .energetic
+        case 50..<80: self = .playful
+        case 20..<50: self = .calm
+        default: self = .sleepy
+        }
+    }
+
+    var cycleDuration: Double {
+        switch self {
+        case .unknown: 0
+        case .sleepy: 2.8
+        case .calm: 1.6
+        case .playful: 0.8
+        case .energetic: 0.48
+        }
+    }
+}
+
+@MainActor
+final class TouchBarRainbowCatView: NSView {
+    private(set) var activity: TouchBarCatActivity = .unknown
+    private var animationVisible = false
+    private(set) var frames: [CGImage] = []
+    private var frameIndex = 0
+    private var animationTimer: Timer?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        frames = [Self.makeFrame(activity: .unknown, frame: 0)].compactMap { $0 }
+        setAccessibilityElement(false)
+        widthAnchor.constraint(equalToConstant: 92).isActive = true
+        heightAnchor.constraint(equalToConstant: 30).isActive = true
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(updateMotionPreference),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+    }
+
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+
+    var isAnimating: Bool { animationTimer?.isValid == true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.clear.setFill()
+        bounds.fill(using: .copy)
+        guard !frames.isEmpty else { return }
+        NSGraphicsContext.current?.imageInterpolation = .none
+        NSImage(cgImage: frames[frameIndex], size: NSSize(width: 92, height: 30)).draw(in: bounds)
+    }
+
+    func update(activity: TouchBarCatActivity, visible: Bool, reducedMotion: Bool) {
+        let changed = self.activity != activity
+        self.activity = activity
+        animationVisible = visible
+        if changed || frames.isEmpty {
+            frames = (0..<12).compactMap { Self.makeFrame(activity: activity, frame: $0) }
+            frameIndex = 0
+            needsDisplay = true
+        }
+        guard visible && !reducedMotion && activity != .unknown else {
+            animationTimer?.invalidate()
+            animationTimer = nil
+            frameIndex = 0
+            needsDisplay = true
+            return
+        }
+        guard changed || !isAnimating else { return }
+        animationTimer?.invalidate()
+        // Touch Bar content needs actual AppKit redraws, not only a layer's presentation animation.
+        let timer = Timer(timeInterval: activity.cycleDuration / 12, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            MainActor.assumeIsolated {
+                guard !self.frames.isEmpty else { return }
+                self.frameIndex = (self.frameIndex + 1) % self.frames.count
+                self.needsDisplay = true
+            }
+        }
+        animationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @objc private func updateMotionPreference() {
+        update(activity: activity, visible: animationVisible,
+               reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    static func makeFrame(activity: TouchBarCatActivity, frame: Int) -> CGImage? {
+        let image = NSImage(size: NSSize(width: 92, height: 30))
+        image.lockFocus()
+        drawCat(activity: activity, frame: frame)
+        image.unlockFocus()
+        return image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+
+    private static func drawCat(activity: TouchBarCatActivity, frame: Int) {
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current?.shouldAntialias = false
+        let sleepy = activity == .sleepy
+        let running = activity == .energetic || activity == .playful
+        let phase = Double(frame % 12) * .pi / 6
+        let moving = running || activity == .calm
+        func block(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ color: NSColor) {
+            color.setFill()
+            NSRect(x: x, y: y, width: w, height: h).fill()
+        }
+        // Stars and ground streaks move left while the cat runs in place.
+        if moving {
+            for (index, start) in [12, 48, 83].enumerated() {
+                let x = CGFloat((start - frame * (running ? 4 : 2) + 92) % 92)
+                let y: CGFloat = index == 1 ? 3 : 26
+                let color = NSColor(white: 0.7, alpha: running ? 0.7 : 0.4)
+                block(x, y, 2, 2, color)
+                if running && (frame + index * 3) % 6 < 3 {
+                    block(x - 1, y + 1, 4, 1, color)
+                    block(x + 1, y - 1, 1, 4, color)
+                }
+            }
+            if activity == .energetic {
+                block(CGFloat(8 + (24 - frame * 2) % 24), 5, 7, 1, NSColor(white: 0.5, alpha: 0.5))
+            }
+        }
+        let trailLength = activity == .energetic ? 10 : (running ? 8 : (activity == .calm ? 6 : 4))
+        let rainbow: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple]
+        for (row, color) in rainbow.enumerated() {
+            let tint = activity == .unknown ? NSColor.gray : (color.blended(withFraction: 0.25, of: .white) ?? color)
+            tint.withAlphaComponent(sleepy ? 0.55 : 1).setFill()
+            for column in 0..<trailLength {
+                let wave = moving ? Int((sin(phase + Double(column) * .pi / 3) * 1.5).rounded()) : 0
+                NSRect(x: CGFloat(38 - column * 4), y: CGFloat(20 - row * 2 + wave), width: 4, height: 2).fill()
+            }
+        }
+        let bob = NSAffineTransform()
+        let bounce = running ? CGFloat(sin(phase * 2).rounded()) : (sleepy && (2...6).contains(frame) ? 1.0 : 0)
+        bob.translateX(by: 0, yBy: bounce)
+        bob.concat()
+        let outline = NSColor(white: 0.2, alpha: 1)
+        let fur = NSColor(white: 0.78, alpha: 1)
+        // Independent tail wag and diagonal pairs of paws: extend, push off, lift, recover.
+        let wag = moving ? CGFloat((sin(phase) * 3).rounded()) : 0
+        block(30, 12, 10, 4, outline)
+        block(28, 12 + wag, 5, 6, outline)
+        block(29, 14 + wag, 3, 3, fur)
+        block(32, 13, 6, 2, fur)
+        for (index, x) in [40.0, 47, 56, 63].enumerated() {
+            let legPhase = phase + (index.isMultiple(of: 2) ? 0 : .pi)
+            let reach = moving ? CGFloat((cos(legPhase) * (running ? 4 : 2)).rounded()) : 0
+            // x decreases during stance; lift only on the forward recovery (x increasing).
+            let lift = moving ? CGFloat((max(0, -sin(legPhase)) * 3).rounded()) : 0
+            let footY: CGFloat = sleepy ? 6 : 2 + lift
+            let legColor = index.isMultiple(of: 2) ? fur : NSColor(white: 0.6, alpha: 1)
+            block(x, 5, 4, 5, outline)
+            block(x + reach, footY, 6, 4, outline)
+            block(x + reach + 1, footY + 1, 4, 2, legColor)
+            block(x + 1, footY + 2, 2, 5 - lift, legColor)
+        }
+        block(36, 7, 29, 18, outline)
+        block(38, 9, 25, 14, NSColor(red: 0.92, green: 0.75, blue: 0.51, alpha: 1))
+        block(40, 11, 21, 10, NSColor(red: 0.96, green: 0.64, blue: 0.77, alpha: 1))
+        for (x, y) in [(42.0, 18.0), (48, 14), (54, 19), (57, 13)] {
+            block(x, y, 2, 2, NSColor(red: 0.76, green: 0.34, blue: 0.57, alpha: 1))
+        }
+        // The head lags the body's bounce; ears flex and eyes squint on landing.
+        let head = NSAffineTransform()
+        let nod = running ? CGFloat((sin(phase - .pi / 3)).rounded()) : 0
+        head.translateX(by: moving ? CGFloat(cos(phase).rounded()) : 0, yBy: nod)
+        head.concat()
+        let earFold: CGFloat = running ? CGFloat(max(0, sin(phase * 2)) * 2).rounded() : 0
+        outline.setFill()
+        let ears = NSBezierPath()
+        for points in [
+            [NSPoint(x: 58, y: 21), NSPoint(x: 58 - earFold, y: 27 - earFold), NSPoint(x: 67, y: 23)],
+            [NSPoint(x: 73, y: 23), NSPoint(x: 82 - earFold, y: 27 - earFold), NSPoint(x: 82, y: 21)]
+        ] {
+            ears.move(to: points[0]); ears.line(to: points[1]); ears.line(to: points[2]); ears.close()
+        }
+        ears.fill()
+        block(58, 8, 24, 16, outline)
+        block(60, 10, 20, 12, fur)
+        block(60 - earFold, 23, 3, 3 - earFold, .systemPink)
+        block(77 - earFold, 23, 3, 3 - earFold, .systemPink)
+        let eyeHeight: CGFloat = sleepy ? 1 : (running && [2, 3, 8, 9].contains(frame) ? 2 : 4)
+        block(62, 16, 4, eyeHeight, outline)
+        block(74, 16, 4, eyeHeight, outline)
+        if eyeHeight == 4 {
+            block(62, 18, 1, 1, .white); block(74, 18, 1, 1, .white)
+        }
+        block(60, 12, 3, 2, .systemPink); block(77, 12, 3, 2, .systemPink)
+        block(69, 14, 2, 1, outline)
+        block(67, 12, 2, 1, outline); block(69, 11, 2, 1, outline); block(71, 12, 2, 1, outline)
+        block(55, 13, 4, 1, fur); block(81, 13, 4, 1, fur)
+        block(55, 10, 4, 1, fur); block(81, 10, 4, 1, fur)
     }
 }
 
@@ -523,6 +837,48 @@ enum QuotaLevel {
         case .critical: "xmark.octagon.fill"
         }
     }
+}
+
+struct TouchBarQuotaContent {
+    let label: String
+    let window: QuotaWindow?
+    let status: RateLimitStatus
+    let includesDate: Bool
+
+    private var displayedWindow: QuotaWindow? {
+        status == .live || status == .manual ? window : nil
+    }
+
+    var remainingFraction: Double? { displayedWindow.map { $0.remainingPercent / 100 } }
+
+    var chartColor: NSColor {
+        let color: NSColor
+        switch displayedWindow?.level {
+        case .sufficient: color = .systemGreen
+        case .attention: color = .systemOrange
+        case .low: color = .systemYellow
+        case .critical: color = .systemRed
+        case nil: color = .systemGray
+        }
+        return color.blended(withFraction: 0.3, of: .white) ?? color
+    }
+
+    var title: String {
+        guard let window = displayedWindow else { return "\(label) —" }
+        let suffix = status == .manual ? "（手动）" : ""
+        return "\(label) \(Int(window.remainingPercent.rounded()))%\(suffix)"
+    }
+
+    var detail: String {
+        if status == .loading { return "读取中…" }
+        if status == .unavailable { return "暂不可用" }
+        guard let window = displayedWindow else { return "未提供此窗口" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = includesDate ? "M月d日 HH:mm" : "HH:mm"
+        return "重置 \(formatter.string(from: window.resetsAt))"
+    }
+
 }
 
 struct MonitorView: View {
