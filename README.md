@@ -15,7 +15,7 @@
 - macOS 菜单栏双行显示 5 小时 / 每周余量与重置时间；Windows 托盘数字显示余量，悬浮提示注明两个窗口。
 - 点击菜单栏或托盘图标查看账户额度、进度条、重置时间和附加模型额度。
 - 每 30 秒自动刷新，支持手动立即刷新。
-- macOS 源码版支持应用内 Touch Bar：显示两个账户窗口的余量、重置时间，并提供刷新按钮（尚未包含在 v1.2.0 发布包中）。
+- macOS 支持应用内 Touch Bar：显示两个账户窗口的余量、重置时间，并提供刷新按钮和额度联动彩虹猫（v1.3.0 新增）。
 - 可配置回写 API，将当前 5 小时与每周剩余额度发送到你的服务。
 - 自动回写默认关闭，可设置 1–60 分钟间隔；连续失败 10 次会自动暂停并提示。
 - 直接使用本机 Codex 登录凭据请求 OpenAI 额度，不经过第三方 Adapter。
@@ -25,10 +25,10 @@
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.2.0 下载 | 使用方式 |
+| 平台 | v1.3.0 下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.2.0/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.2.0/Codex-Token-Monitor-Windows-x64.zip) | 解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.3.0/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.3.0/Codex-Token-Monitor-Windows-x64.zip) | 解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
@@ -46,7 +46,7 @@
 
 Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放、DPAPI 配置恢复仍需实机验收。上方截图为旧版 macOS 界面，尚未包含套餐标签及附加额度；Windows 外观不同。
 
-### Touch Bar（macOS 源码版）
+### Touch Bar（macOS v1.3.0+）
 
 在带 Touch Bar 的 MacBook Pro 上，点击菜单栏打开 Monitor 弹窗后，Touch Bar 显示 5 小时 / 每周余量和重置时间；每周包含月、日和时分。点击“刷新”复用现有额度请求，读取中禁用按钮；缺失数据使用 `—`，手动备用数据会注明“手动”。
 
@@ -56,7 +56,7 @@ Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放
 
 使用 Apple 官方 AppKit `NSTouchBar` 接口，由弹窗控制器显式提供原生控件，仅在 Monitor 激活并打开弹窗时显示，切换到其他应用后由系统切换内容；不在后台常驻，也不修改系统控制条。若系统设置为只显示“展开的控制条”或功能键，请在“系统设置 → 键盘 → Touch Bar 设置”中选择“App 控制”。没有 Touch Bar 的 Mac 继续使用菜单栏，不受影响。
 
-此功能需从源码构建，现有 v1.2.0 下载包不包含。原生 Touch Bar 已在 M1 + macOS 14.8 上确认能显示；最新跑动效果仍需实机体验。显示、额度联动和动画启停逻辑可通过 `swift test` 验证。
+此功能已包含在 v1.3.0 macOS 下载包中，也可从源码构建。原生 Touch Bar 已在 M1 + macOS 14.8 上确认能显示；最新跑动效果仍需实机体验。显示、额度联动和动画启停逻辑可通过 `swift test` 验证。
 
 ## 运行环境
 
@@ -125,8 +125,8 @@ dotnet run --project windows/App -c Release
 
 ```bash
 # 示例：使用尚未发布的新版本号
-git tag v1.2.1
-git push origin v1.2.1
+git tag v1.3.1
+git push origin v1.3.1
 ```
 
 ## 已知限制
