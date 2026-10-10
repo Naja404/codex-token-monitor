@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "CodexTokenMonitor",
-            path: "Sources"
+            path: "Sources",
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "CodexTokenMonitorTests",

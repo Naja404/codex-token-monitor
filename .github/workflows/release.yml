@@ -36,6 +36,9 @@ jobs:
       - name: Build release binary
         run: swift build -c release --arch arm64
 
+      - name: Run regression tests
+        run: swift test
+
       - name: Assemble app bundle
         run: |
           APP="dist/Codex Token Monitor.app"
@@ -43,7 +46,10 @@ jobs:
           cp .build/arm64-apple-macosx/release/CodexTokenMonitor "$APP/Contents/MacOS/"
           cp Packaging/Info.plist "$APP/Contents/Info.plist"
           cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+          cp -R .build/arm64-apple-macosx/release/CodexTokenMonitor_CodexTokenMonitor.bundle "$APP/Contents/Resources/"
           codesign --force --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          "$APP/Contents/MacOS/CodexTokenMonitor" --verify-resources
           ditto -c -k --sequesterRsrc --keepParent "$APP" dist/Codex-Token-Monitor-macOS-arm64.zip
 
       - name: Upload build artifact

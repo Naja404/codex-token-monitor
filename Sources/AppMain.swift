@@ -3,24 +3,44 @@ import Foundation
 import SwiftUI
 
 @main
-struct CodexTokenMonitorApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
-    var body: some Scene {
-        Settings {
-            EmptyView()
+enum MonitorLauncher {
+    @MainActor static func main() {
+        if CommandLine.arguments.contains("--verify-resources") {
+            let valid = ProviderBrand.allCases.allSatisfy { $0.image != nil }
+            print(valid ? "Provider resources verified" : "Provider resources missing")
+            exit(valid ? EXIT_SUCCESS : EXIT_FAILURE)
+        }
+        if TouchBarDiagnostics.nativeProbeRequested() {
+            // Keep this control experiment independent of the SwiftUI app lifecycle and live providers.
+            TouchBarNativeProbe.run()
+        } else {
+            // AppKit owns the status item, popover and settings window. Use the
+            // same native lifecycle as the verified Touch Bar control experiment.
+            let app = NSApplication.shared
+            app.setActivationPolicy(.accessory)
+            let delegate = AppDelegate()
+            app.delegate = delegate
+            withExtendedLifetime(delegate) { app.run() }
         }
     }
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private let model = UsageModel()
+    private lazy var providers = ProviderStore(codex: model)
+    private lazy var monitorController = MonitorHostingController(rootView: MonitorView(
+        model: model, store: providers,
+        onQuit: { [weak self] in self?.quit() },
+        onSettings: { [weak self] in self?.showSettings() }
+    ))
     private let popover = NSPopover()
+    private var settingsWindow: NSWindow?
     private var cancellable: Any?
     private var resignActiveObserver: NSObjectProtocol?
     private var globalClickMonitor: Any?
+    private var touchBarDiagnosticObservers: [NSObjectProtocol] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -33,16 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 300, height: 380)
-        popover.contentViewController = MonitorHostingController(
-            rootView: MonitorView(
-                model: model,
-                onQuit: { [weak self] in self?.quit() },
-                onWriteBackSettingsVisibilityChanged: { [weak self] visible in
-                    self?.popover.contentSize = NSSize(width: 300, height: visible ? 676 : 380)
-                }
-            )
-        )
+        popover.contentSize = NSSize(width: 360, height: 540)
+        popover.contentViewController = monitorController
+        startTouchBarDiagnostics()
         resignActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: NSApp,
@@ -60,14 +73,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
         model.onRateLimitsUpdated = { [weak self] in self?.updateStatusTitle() }
+        providers.onChange = { [weak self] in self?.updateStatusTitle() }
 
-        model.refresh()
-        model.performScheduledWriteBack()
+        providers.refreshAll()
         updateStatusTitle()
-        cancellable = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        cancellable = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.model.refresh()
-                self?.model.performScheduledWriteBack()
+                if let self { self.providers.advanceMenuRotation(paused: self.popover.isShown) }
+                self?.providers.tick()
                 self?.updateStatusTitle()
             }
         }
@@ -77,9 +90,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // On a secondary display, AppKit passes the status-bar button that was
         // actually clicked. Using statusItem.button can still refer to another display.
         guard let button = (sender as? NSStatusBarButton) ?? statusItem?.button else { return }
+        recordTouchBarState(.beforePopover)
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            providers.beginPopover()
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+            let height = min(540, max(240, (screen?.visibleFrame.height ?? 620) - 80))
+            (popover.contentViewController as? MonitorHostingController)?.rootView.viewportHeight = height
+            popover.contentSize = NSSize(width: 360, height: height)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             // Supply a native bar at both scopes: an accessory popover is not
             // guaranteed to participate in SwiftUI's window-scene discovery.
@@ -87,16 +106,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             NSApp.touchBar = bar
             popover.contentViewController?.view.window?.touchBar = bar
             (popover.contentViewController as? MonitorHostingController)?.setTouchBarVisible(true)
+            recordTouchBarState(.afterPopover)
             // App-scoped Touch Bar content requires this accessory app to be active.
             NSApp.activate(ignoringOtherApps: true)
             popover.contentViewController?.view.window?.makeKey()
             positionPopoverOnClickedScreen(anchorButton: button)
+            recordTouchBarState(.afterActivation)
+            recordSettledTouchBarState(.settledPopover)
         }
     }
 
     func popoverDidClose(_ notification: Notification) {
-        (popover.contentViewController as? MonitorHostingController)?.setTouchBarVisible(false)
-        NSApp.touchBar = nil
+        providers.endPopover()
+        updateTouchBarPresentation()
+        recordTouchBarState(.popoverClosed)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        updateTouchBarPresentation()
+        recordTouchBarState(.appActivated)
+    }
+    func applicationDidResignActive(_ notification: Notification) {
+        updateTouchBarPresentation()
+        recordTouchBarState(.appDeactivated)
+    }
+    func windowDidBecomeKey(_ notification: Notification) { updateTouchBarPresentation() }
+    func windowDidResignKey(_ notification: Notification) { updateTouchBarPresentation() }
+
+    private func updateTouchBarPresentation() {
+        let visible = NSApp.isActive && (popover.isShown ||
+            (settingsWindow?.isVisible == true && settingsWindow?.isKeyWindow == true))
+        NSApp.touchBar = visible ? monitorController.touchBar : nil
+        monitorController.setTouchBarVisible(visible)
+    }
+
+    private func startTouchBarDiagnostics() {
+        guard TouchBarDiagnostics.shared.enabled else { return }
+        for (name, event) in [
+            (NSWindow.didBecomeKeyNotification, TouchBarDiagnostics.Event.windowBecameKey),
+            (NSWindow.didResignKeyNotification, TouchBarDiagnostics.Event.windowResignedKey)
+        ] {
+            touchBarDiagnosticObservers.append(NotificationCenter.default.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.recordTouchBarState(event) }
+            })
+        }
+        recordTouchBarState(.launch)
+    }
+
+    private func recordSettledTouchBarState(_ event: TouchBarDiagnostics.Event) {
+        guard TouchBarDiagnostics.shared.enabled else { return }
+        for delay in [0.2, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.recordTouchBarState(event)
+            }
+        }
+    }
+
+    private func recordTouchBarState(_ event: TouchBarDiagnostics.Event) {
+        TouchBarDiagnostics.shared.record(event) {
+            let window = self.monitorController.viewIfLoaded?.window
+            let keyWindow = NSApp.keyWindow
+            var state = self.monitorController.touchBarDiagnosticState
+            state.merge([
+                .appActive: NSApp.isActive,
+                .appFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier,
+                .accessoryPolicy: NSApp.activationPolicy() == .accessory,
+                .popoverShown: self.popover.isShown,
+                .popoverWindowExists: window != nil,
+                .popoverCanBecomeKey: window?.canBecomeKey == true,
+                .popoverIsKey: window?.isKeyWindow == true,
+                .settingsVisible: self.settingsWindow?.isVisible == true,
+                .settingsIsKey: self.settingsWindow?.isKeyWindow == true,
+                .hasKeyWindow: keyWindow != nil,
+                .hasFirstResponder: keyWindow?.firstResponder != nil,
+                .responderIsContentView: keyWindow != nil && keyWindow?.firstResponder === keyWindow?.contentView
+            ]) { _, value in value }
+            return state
+        }
     }
 
     private func positionPopoverOnClickedScreen(anchorButton: NSStatusBarButton) {
@@ -125,22 +213,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func quit() {
+        providers.stop()
         NSApp.terminate(nil)
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        touchBarDiagnosticObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        touchBarDiagnosticObservers.removeAll()
+        providers.stop()
+        (cancellable as? Timer)?.invalidate()
+    }
+
+    private func showSettings() {
+        popover.performClose(nil)
+        if settingsWindow == nil {
+            settingsWindow = makeSettingsWindow()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        updateTouchBarPresentation()
+        recordTouchBarState(.settingsShown)
+        recordSettledTouchBarState(.settledSettings)
+    }
+
+    func makeSettingsWindow() -> NSWindow {
+        let controller = MonitorSettingsHostingController(
+            rootView: MonitorSettingsView(model: model, store: providers), quotaController: monitorController
+        )
+        let window = NSWindow(contentViewController: controller)
+        window.touchBar = controller.touchBar
+        window.delegate = self
+        window.title = "Codex Token Monitor · 设置"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 740, height: 600))
+        window.minSize = NSSize(width: 680, height: 520)
+        window.isReleasedWhenClosed = false
+        window.center()
+        return window
+    }
+
     private func updateStatusTitle() {
-        (popover.contentViewController as? MonitorHostingController)?.updateQuotaTouchBar()
-        let fiveHour = model.fiveHour.map {
-            "5小时 \(Int($0.remainingPercent.rounded()))% · \($0.resetsAt.formatted(date: .omitted, time: .shortened))"
-        } ?? "5小时 — · —"
-        let weekly = model.weekly.map {
-            "一周 \(Int($0.remainingPercent.rounded()))% · \($0.resetsAt.formatted(.dateTime.month().day()))"
-        } ?? "一周 — · —"
+        monitorController.updateQuotaTouchBar()
+        let (fiveHour, weekly) = providers.menuLines
         statusItem?.button?.title = ""
         statusItem?.button?.image = MenuBarUsageImage.make(firstLine: fiveHour, secondLine: weekly)
         statusItem?.button?.imagePosition = .imageOnly
-        statusItem?.button?.toolTip = "\(fiveHour)；\(weekly)"
+        statusItem?.button?.toolTip = "\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)"
     }
+}
+
+@MainActor
+final class MonitorSettingsHostingController: NSHostingController<MonitorSettingsView> {
+    private let quotaController: MonitorHostingController
+
+    init(rootView: MonitorSettingsView, quotaController: MonitorHostingController) {
+        self.quotaController = quotaController
+        super.init(rootView: rootView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func makeTouchBar() -> NSTouchBar? { quotaController.touchBar }
 }
 
 @MainActor
@@ -149,6 +283,13 @@ final class MonitorHostingController: NSHostingController<MonitorView> {
     private let weeklyItem = makeQuotaItem("codex.quota.weekly", width: 180)
     private let catView = TouchBarRainbowCatView(frame: NSRect(x: 0, y: 0, width: 92, height: 30))
     private var touchBarVisible = false
+    // Observe the existing bar without invoking NSResponder's lazy touchBar getter.
+    private weak var diagnosticBar: NSTouchBar?
+    var touchBarDiagnosticState: [TouchBarDiagnostics.Field: Bool] {
+        [.barCreated: diagnosticBar != nil, .barEligible: diagnosticBar?.isVisible == true,
+         .hasFourItems: diagnosticBar?.templateItems.count == 4,
+         .catAnimating: catView.isAnimating, .presentationRequested: touchBarVisible]
+    }
     private lazy var refreshItem = NSButtonTouchBarItem(
         identifier: .init("codex.quota.refresh"), title: "刷新", target: self, action: #selector(refreshQuota)
     )
@@ -158,24 +299,54 @@ final class MonitorHostingController: NSHostingController<MonitorView> {
         let catItem = NSCustomTouchBarItem(identifier: .init("codex.quota.cat"))
         catItem.view = catView
         catItem.visibilityPriority = .low
-        bar.defaultItemIdentifiers = [catItem.identifier, fiveHourItem.identifier, weeklyItem.identifier, refreshItem.identifier]
+        // SwiftUI's hosting view supplies a closer-scoped bar. Compose it instead
+        // of letting it replace this quota bar when a child control has focus.
+        bar.defaultItemIdentifiers = [catItem.identifier, fiveHourItem.identifier, weeklyItem.identifier,
+                                      refreshItem.identifier, .otherItemsProxy]
         bar.templateItems = [catItem, fiveHourItem, weeklyItem, refreshItem]
+        diagnosticBar = bar
+        TouchBarDiagnostics.shared.record(.barCreated) { touchBarDiagnosticState }
         updateQuotaTouchBar()
         return bar
     }
 
     func updateQuotaTouchBar() {
-        let model = rootView.model
-        update(fiveHourItem, content: TouchBarQuotaContent(
-            label: "5小时", window: model.fiveHour, status: model.rateLimitStatus, includesDate: false
-        ))
-        update(weeklyItem, content: TouchBarQuotaContent(
-            label: "每周", window: model.weekly, status: model.rateLimitStatus, includesDate: true
-        ))
-        refreshItem.title = model.rateLimitStatus == .loading ? "读取中" : "刷新"
-        refreshItem.isEnabled = model.rateLimitStatus != .loading
-        catView.update(activity: TouchBarCatActivity(fiveHour: model.fiveHour, weekly: model.weekly,
-                                                     status: model.rateLimitStatus),
+        let store = rootView.store
+        let metrics = store.displayedQuotaMetrics
+        let status = store.displayedQuotaStatus
+        if store.displayedMenuSource == .teamo {
+            let quota = status == .live ? store.teamoSnapshot : nil
+            update(fiveHourItem, content: TouchBarQuotaContent(
+                label: "TR 余额", metric: nil, status: status, includesDate: false,
+                titleOverride: quota.map { "TR " + $0.balanceText }, detailOverride: quota.map { _ in "账户余额 · USD" }
+            ))
+            update(weeklyItem, content: TouchBarQuotaContent(
+                label: "今日消费", metric: nil, status: status, includesDate: false,
+                titleOverride: quota.map { "今日 " + $0.costText }, detailOverride: quota.map { _ in "当前 Key · 本地日期" }
+            ))
+        } else if store.displayedMenuSource == .warp {
+            let quota = status == .live ? store.warpSnapshot : nil
+            update(fiveHourItem, content: TouchBarQuotaContent(
+                label: "W 周期", metric: quota?.metric, status: status, includesDate: true,
+                titleOverride: quota.map { "W " + $0.balanceText },
+                detailOverride: quota.map { $0.resetsAt.map { "重置 " + $0.formatted(.dateTime.month().day().hour().minute()) } ?? "未提供重置时间" }
+            ))
+            update(weeklyItem, content: TouchBarQuotaContent(
+                label: "额外 Credits", metric: nil, status: status, includesDate: true,
+                titleOverride: quota.map { "额外 " + ($0.bonusRemaining?.formatted(.number.precision(.fractionLength(0...1))) ?? "—") + " Credits" },
+                detailOverride: quota.map { _ in "个人额度 · 不含团队" }
+            ))
+        } else {
+            update(fiveHourItem, content: TouchBarQuotaContent(
+                label: store.displayedSourcePrefix + "5小时", metric: metrics.first { $0.window == "5h" }, status: status, includesDate: false
+            ))
+            update(weeklyItem, content: TouchBarQuotaContent(
+                label: store.displayedSourcePrefix + "每周", metric: metrics.first { $0.window == "weekly" }, status: status, includesDate: true
+            ))
+        }
+        refreshItem.title = status == .loading ? "读取中" : "刷新"
+        refreshItem.isEnabled = store.canRefreshDisplayedSource
+        catView.update(activity: TouchBarCatActivity(remainingPercent: metrics.filter { ["5h", "weekly", "cycle"].contains($0.window) }.map(\.remainingPercent).min(), status: status),
                        visible: touchBarVisible,
                        reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
     }
@@ -186,8 +357,7 @@ final class MonitorHostingController: NSHostingController<MonitorView> {
     }
 
     @objc private func refreshQuota() {
-        guard rootView.model.rateLimitStatus != .loading else { return }
-        rootView.model.refresh()
+        rootView.store.refreshDisplayedSource()
     }
 
     private static func makeQuotaItem(_ identifier: String, width: CGFloat) -> NSCustomTouchBarItem {
@@ -239,25 +409,31 @@ final class TouchBarQuotaChartView: NSView {
 }
 
 enum TouchBarCatActivity {
-    case unknown, sleepy, calm, playful, energetic
+    case unknown, sleeping, sleepy, calm, playful, energetic
 
     init(fiveHour: QuotaWindow?, weekly: QuotaWindow?, status: RateLimitStatus) {
+        self.init(remainingPercent: [fiveHour, weekly].compactMap { $0?.remainingPercent }.min(), status: status)
+    }
+
+    init(remainingPercent: Double?, status: RateLimitStatus) {
         guard status == .live || status == .manual,
-              let remaining = [fiveHour, weekly].compactMap({ $0?.remainingPercent }).min() else {
-            self = .unknown
+              let remaining = remainingPercent else {
+            self = .sleeping
             return
         }
         switch remaining {
         case 80...: self = .energetic
         case 50..<80: self = .playful
         case 20..<50: self = .calm
-        default: self = .sleepy
+        case 10..<20: self = .sleepy
+        default: self = .sleeping
         }
     }
 
     var cycleDuration: Double {
         switch self {
         case .unknown: 0
+        case .sleeping: 3.6
         case .sleepy: 2.8
         case .calm: 1.6
         case .playful: 0.8
@@ -312,9 +488,25 @@ struct TouchBarCatLegPose {
     }
 }
 
+struct TouchBarSleepSymbolPose {
+    let x: CGFloat
+    let y: CGFloat
+    let size: CGFloat
+    let opacity: Double
+
+    init(frame: Int, index: Int) {
+        let progress = Double((frame + index * 4) % 12) / 12
+        x = 76 + progress * 9
+        y = 19 + progress * 9
+        size = progress < 0.5 ? 3 : 4
+        // Staggered symbols rise away from the face; reset only when transparent.
+        opacity = min(1, progress * 6, (1 - progress) * 3) * 0.85
+    }
+}
+
 @MainActor
 final class TouchBarRainbowCatView: NSView {
-    private(set) var activity: TouchBarCatActivity = .unknown
+    private(set) var activity: TouchBarCatActivity = .sleeping
     private var animationVisible = false
     private(set) var frames: [CGImage] = []
     private var frameIndex = 0
@@ -322,7 +514,7 @@ final class TouchBarRainbowCatView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        frames = [Self.makeFrame(activity: .unknown, frame: 0)].compactMap { $0 }
+        frames = (0..<12).compactMap { Self.makeFrame(activity: .sleeping, frame: $0) }
         setAccessibilityElement(false)
         widthAnchor.constraint(equalToConstant: 92).isActive = true
         heightAnchor.constraint(equalToConstant: 30).isActive = true
@@ -390,6 +582,10 @@ final class TouchBarRainbowCatView: NSView {
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSGraphicsContext.current?.shouldAntialias = false
+        if activity == .sleeping {
+            drawSleepingCat(frame: frame)
+            return
+        }
         let sleepy = activity == .sleepy
         let running = activity == .energetic || activity == .playful
         let phase = Double(frame % 12) * .pi / 6
@@ -500,6 +696,46 @@ final class TouchBarRainbowCatView: NSView {
         block(55, 13, 4, 1, fur); block(81, 13, 4, 1, fur)
         block(55, 10, 4, 1, fur); block(81, 10, 4, 1, fur)
     }
+
+    private static func drawSleepingCat(frame: Int) {
+        let phase = Double(frame % 12) * .pi / 6
+        let breath = CGFloat((sin(phase) + 1) / 2)
+        let outline = NSColor(white: 0.2, alpha: 1)
+        let fur = NSColor(white: 0.78, alpha: 1)
+        func block(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ color: NSColor) {
+            color.setFill()
+            NSRect(x: x, y: y, width: w, height: h).fill()
+        }
+        // Rest on tucked paws; only the torso rises with a slow breath.
+        block(27, 4, 48, 2, NSColor(white: 0.45, alpha: 0.25))
+        for (row, color) in [NSColor.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple].enumerated() {
+            block(16, CGFloat(15 - row), 17, 1, color.withAlphaComponent(0.3))
+        }
+        outline.setFill()
+        NSBezierPath(roundedRect: NSRect(x: 30, y: 6, width: 34, height: 14 + breath * 2), xRadius: 6, yRadius: 6).fill()
+        block(33, 8, 27, 10 + breath * 2, NSColor(red: 0.92, green: 0.75, blue: 0.51, alpha: 1))
+        block(36, 10, 21, 6 + breath * 2, NSColor(red: 0.96, green: 0.64, blue: 0.77, alpha: 1))
+        for x: CGFloat in [39, 46, 52] {
+            block(x, 12 + breath, 2, 2, NSColor(red: 0.76, green: 0.34, blue: 0.57, alpha: 1))
+        }
+        // Curled tail and paws stay planted instead of cycling through walking frames.
+        block(27, 7, 9, 7, outline); block(29, 9, 5, 3, fur)
+        block(33, 5, 21, 4, outline); block(35, 6, 17, 2, fur)
+        block(57, 5, 15, 3, outline); block(59, 6, 11, 1, fur)
+        block(55, 7, 23, 11, outline); block(57, 9, 19, 7, fur)
+        block(55, 16, 6, 4, outline); block(72, 16, 6, 4, outline)
+        block(57, 17, 3, 2, .systemPink); block(73, 17, 3, 2, .systemPink)
+        block(59, 12, 5, 1, outline); block(70, 12, 5, 1, outline)
+        block(66, 10, 2, 1, outline)
+        // Pixel Zs drift upward independently of the body's breathing cycle.
+        for index in 0..<3 {
+            let pose = TouchBarSleepSymbolPose(frame: frame, index: index)
+            let (x, y, size) = (pose.x, pose.y, pose.size)
+            let color = NSColor(white: 0.8, alpha: pose.opacity)
+            block(x, y, size, 1, color); block(x, y - size + 1, size, 1, color)
+            for step in 1..<Int(size - 1) { block(x + size - 1 - Double(step), y - Double(step), 1, 1, color) }
+        }
+    }
 }
 
 enum MenuBarUsageImage {
@@ -530,18 +766,27 @@ final class UsageModel: ObservableObject {
     @Published private(set) var weekly: QuotaWindow?
     @Published private(set) var planName = "套餐未识别"
     @Published private(set) var additionalLimits: [NamedRateLimits] = []
-    @Published private(set) var reportedTokens = 0
-    @Published private(set) var databaseAvailable = false
     @Published private(set) var rateLimitStatus: RateLimitStatus = .loading
     @Published private(set) var lastRefreshAt: Date?
+    @Published private(set) var lastSuccessAt: Date?
+    @Published private(set) var readError: ProviderReadError?
+    @Published private(set) var monitoringEnabled: Bool
     @Published private(set) var writeBackLastSuccessAt: Date?
     @Published private(set) var writeBackConsecutiveFailures = 0
     @Published private(set) var writeBackPaused = false
     var onRateLimitsUpdated: (() -> Void)?
     private var writeBackTaskInFlight = false
+    private let defaults: UserDefaults
+    private let readUsage: @Sendable () async throws -> LiveRateLimits
+    private var refreshTask: Task<Void, Never>?
+    private var refreshGeneration = 0
 
-    init() {
-        let defaults = UserDefaults.standard
+    init(defaults: UserDefaults = .standard,
+         readUsage: @escaping @Sendable () async throws -> LiveRateLimits = { try await DirectCodexUsageReader().read() }) {
+        self.defaults = defaults
+        self.readUsage = readUsage
+        monitoringEnabled = defaults.object(forKey: "codexEnabled") as? Bool ?? true
+        if !monitoringEnabled { rateLimitStatus = .unavailable }
         let lastSuccess = defaults.double(forKey: "writeBackLastSuccessAt")
         writeBackLastSuccessAt = lastSuccess > 0 ? Date(timeIntervalSince1970: lastSuccess) : nil
         writeBackConsecutiveFailures = defaults.integer(forKey: "writeBackConsecutiveFailures")
@@ -549,36 +794,62 @@ final class UsageModel: ObservableObject {
     }
 
     func refresh() {
+        guard monitoringEnabled, refreshTask == nil else { return }
         lastRefreshAt = .now
         rateLimitStatus = .loading
+        readError = nil
         onRateLimitsUpdated?()
-
-        let reader = LocalCodexUsageReader()
-        let result = reader.read()
-        reportedTokens = result.tokens
-        databaseAvailable = result.available
-
-        Task { [weak self] in
-            let rateLimits = await DirectCodexUsageReader().read()
-            guard let self else { return }
-            guard let rateLimits else {
+        let generation = refreshGeneration
+        let read = readUsage
+        refreshTask = Task { [weak self] in
+            do {
+                let rateLimits = try await read()
+                guard let self, self.monitoringEnabled, generation == self.refreshGeneration, !Task.isCancelled else { return }
+                self.lastSuccessAt = .now
+                self.apply(rateLimits)
+                self.performScheduledWriteBack()
+            } catch {
+                guard let self, self.monitoringEnabled, generation == self.refreshGeneration, !Task.isCancelled else { return }
                 self.fiveHour = nil
                 self.weekly = nil
                 self.planName = "套餐未识别"
                 self.additionalLimits = []
                 self.rateLimitStatus = .unavailable
+                self.readError = error as? ProviderReadError ?? .network
                 self.onRateLimitsUpdated?()
-                return
             }
-            self.apply(rateLimits)
-            self.performScheduledWriteBack()
+            guard let self, generation == self.refreshGeneration else { return }
+            self.refreshTask = nil
         }
     }
 
+    func setMonitoringEnabled(_ enabled: Bool) {
+        monitoringEnabled = enabled
+        defaults.set(enabled, forKey: "codexEnabled")
+        cancelRefresh()
+        fiveHour = nil
+        weekly = nil
+        additionalLimits = []
+        planName = "套餐未识别"
+        readError = nil
+        rateLimitStatus = .unavailable
+        onRateLimitsUpdated?()
+        if enabled { refresh() }
+    }
+
+    func cancelRefresh() {
+        refreshGeneration += 1
+        refreshTask?.cancel()
+        refreshTask = nil
+    }
+
     func useManualValues(fiveHour: QuotaWindow, weekly: QuotaWindow) {
+        guard monitoringEnabled else { return }
+        cancelRefresh()
         self.fiveHour = fiveHour
         self.weekly = weekly
         additionalLimits = []
+        readError = nil
         rateLimitStatus = .manual
         onRateLimitsUpdated?()
     }
@@ -586,13 +857,12 @@ final class UsageModel: ObservableObject {
     func saveWriteBackConfiguration() {
         writeBackConsecutiveFailures = 0
         writeBackPaused = false
-        UserDefaults.standard.set(0, forKey: "writeBackConsecutiveFailures")
-        UserDefaults.standard.set(false, forKey: "writeBackPaused")
+        defaults.set(0, forKey: "writeBackConsecutiveFailures")
+        defaults.set(false, forKey: "writeBackPaused")
     }
 
     func performScheduledWriteBack() {
-        let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: "writeBackEnabled"), !writeBackPaused,
+        guard monitoringEnabled, defaults.bool(forKey: "writeBackEnabled"), !writeBackPaused,
               !writeBackTaskInFlight, rateLimitStatus == .live,
               fiveHour != nil, weekly != nil else { return }
         let interval = max(1, defaults.integer(forKey: "writeBackIntervalMinutes"))
@@ -628,6 +898,7 @@ final class UsageModel: ObservableObject {
     }
 
     func writeBack(apiURL: String, bearer: String, codexKeyID: String) async -> WriteBackStatus {
+        guard monitoringEnabled else { return .failure("Codex 监控已关闭") }
         let trimmedURL = apiURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBearer = bearer.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKeyID = codexKeyID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -696,7 +967,6 @@ final class UsageModel: ObservableObject {
     }
 
     private func recordWriteBackResult(_ result: WriteBackStatus) {
-        let defaults = UserDefaults.standard
         switch result {
         case .success:
             writeBackLastSuccessAt = .now
@@ -794,24 +1064,6 @@ enum RateLimitStatus: Equatable {
     case live
     case unavailable
     case manual
-
-    var title: String {
-        switch self {
-        case .loading: "正在读取 Codex 实时额度…"
-        case .live: "当前账户的实时额度"
-        case .unavailable: "未读取到 Codex 实时额度"
-        case .manual: "手动填写的备用额度"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .loading: "—"
-        case .live: "已直连 OpenAI"
-        case .unavailable: "请先在本机登录 Codex"
-        case .manual: "不会伪装为实时数据"
-        }
-    }
 }
 
 struct QuotaWindow: Codable, Equatable {
@@ -837,8 +1089,6 @@ struct QuotaWindow: Codable, Equatable {
         guard budget > 0 else { return 0 }
         return max(0, min(100, Double(budget - used) / Double(budget) * 100))
     }
-
-    var remainingText: String { "\(Int(remainingPercent.rounded()))% 剩余" }
 
     var level: QuotaLevel {
         QuotaLevel(remainingPercent: remainingPercent)
@@ -888,33 +1138,41 @@ enum QuotaLevel {
         }
     }
 
-    var badgeBackground: Color { color.opacity(0.14) }
-
-    var symbol: String {
-        switch self {
-        case .sufficient: "checkmark.circle.fill"
-        case .attention: "exclamationmark.circle.fill"
-        case .low: "exclamationmark.triangle.fill"
-        case .critical: "xmark.octagon.fill"
-        }
-    }
 }
 
 struct TouchBarQuotaContent {
     let label: String
-    let window: QuotaWindow?
+    let metric: QuotaMetric?
     let status: RateLimitStatus
     let includesDate: Bool
+    let titleOverride: String?
+    let detailOverride: String?
 
-    private var displayedWindow: QuotaWindow? {
-        status == .live || status == .manual ? window : nil
+    init(label: String, metric: QuotaMetric?, status: RateLimitStatus, includesDate: Bool,
+         titleOverride: String? = nil, detailOverride: String? = nil) {
+        self.label = label
+        self.metric = metric
+        self.status = status
+        self.includesDate = includesDate
+        self.titleOverride = titleOverride
+        self.detailOverride = detailOverride
+    }
+
+    init(label: String, window: QuotaWindow?, status: RateLimitStatus, includesDate: Bool) {
+        self.init(label: label, metric: window.map {
+            QuotaMetric(id: label, window: includesDate ? "weekly" : "5h", remainingPercent: $0.remainingPercent, resetsAt: $0.resetsAt)
+        }, status: status, includesDate: includesDate)
+    }
+
+    private var displayedWindow: QuotaMetric? {
+        status == .live || status == .manual ? metric : nil
     }
 
     var remainingFraction: Double? { displayedWindow.map { $0.remainingPercent / 100 } }
 
     var chartColor: NSColor {
         let color: NSColor
-        switch displayedWindow?.level {
+        switch displayedWindow.map({ QuotaLevel(remainingPercent: $0.remainingPercent) }) {
         case .sufficient: color = .systemGreen
         case .attention: color = .systemOrange
         case .low: color = .systemYellow
@@ -925,6 +1183,7 @@ struct TouchBarQuotaContent {
     }
 
     var title: String {
+        if status == .live, let titleOverride { return titleOverride }
         guard let window = displayedWindow else { return "\(label) —" }
         let suffix = status == .manual ? "（手动）" : ""
         return "\(label) \(Int(window.remainingPercent.rounded()))%\(suffix)"
@@ -933,208 +1192,17 @@ struct TouchBarQuotaContent {
     var detail: String {
         if status == .loading { return "读取中…" }
         if status == .unavailable { return "暂不可用" }
+        if status == .live, let detailOverride { return detailOverride }
         guard let window = displayedWindow else { return "未提供此窗口" }
+        guard let reset = window.resetsAt else { return "未提供重置时间" }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = includesDate ? "M月d日 HH:mm" : "HH:mm"
-        return "重置 \(formatter.string(from: window.resetsAt))"
+        return "重置 \(formatter.string(from: reset))"
     }
 
 }
 
-struct MonitorView: View {
-    @ObservedObject var model: UsageModel
-    let onQuit: () -> Void
-    let onWriteBackSettingsVisibilityChanged: (Bool) -> Void
-    @State private var fiveHour: QuotaWindow = .defaultFiveHour
-    @State private var weekly: QuotaWindow = .defaultWeekly
-    @State private var editing = false
-    @State private var showWriteBackSettings = false
-    @AppStorage("writeBackAPIURL") private var writeBackAPIURL = ""
-    @AppStorage("writeBackBearer") private var writeBackBearer = ""
-    @AppStorage("writeBackCodexKeyID") private var writeBackCodexKeyID = ""
-    @AppStorage("writeBackIntervalMinutes") private var writeBackIntervalMinutes = 1
-    @AppStorage("writeBackEnabled") private var writeBackEnabled = false
-    @State private var writeBackStatus: WriteBackStatus?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.bar.xaxis")
-                    .foregroundStyle(.tint)
-                Text("Codex Token Monitor")
-                    .font(.headline)
-                Spacer()
-                Text(model.lastRefreshAt?.formatted(date: .omitted, time: .shortened) ?? "未刷新")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button {
-                    model.refresh()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("立即刷新")
-                .accessibilityLabel("立即刷新额度")
-            }
-
-            if editing {
-                EditQuotaView(window: $fiveHour, label: "5 小时")
-                EditQuotaView(window: $weekly, label: "每周")
-                HStack {
-                    Button("取消") { editing = false }
-                        .buttonStyle(.bordered)
-                    Spacer()
-                    Button("保存") {
-                        model.useManualValues(fiveHour: fiveHour, weekly: weekly)
-                        editing = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            } else {
-                if let fiveHour = model.fiveHour {
-                    QuotaRow(window: fiveHour)
-                } else {
-                    QuotaPlaceholderRow(label: "5 小时额度", status: model.rateLimitStatus)
-                }
-                if let weekly = model.weekly {
-                    QuotaRow(window: weekly)
-                } else {
-                    QuotaPlaceholderRow(label: "每周额度", status: model.rateLimitStatus)
-                }
-
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 3) {
-                Text("\(model.planName) · \(model.rateLimitStatus.title)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(model.rateLimitStatus.detail)
-                            .font(.title3.monospacedDigit())
-                    }
-                    Spacer()
-                    Button {
-                        fiveHour = model.fiveHour ?? .defaultFiveHour
-                        weekly = model.weekly ?? .defaultWeekly
-                        editing = true
-                    } label: {
-                        Label("手动备选", systemImage: "slider.horizontal.3")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if model.additionalLimits.isEmpty {
-                            Text(model.rateLimitStatus == .live ? "接口未提供附加模型额度" : "附加模型额度：—")
-                                .foregroundStyle(.secondary)
-                        }
-                        ForEach(Array(model.additionalLimits.enumerated()), id: \.offset) { _, limit in
-                            Text("附加额度 · \(limit.name)").fontWeight(.medium)
-                            Text(limit.summary).foregroundStyle(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .font(.caption)
-                .frame(height: 64)
-
-                HStack {
-                    Button {
-                        showWriteBackSettings.toggle()
-                        writeBackStatus = nil
-                        onWriteBackSettingsVisibilityChanged(showWriteBackSettings)
-                    } label: {
-                        Label(showWriteBackSettings ? "收起设置" : "回写设置", systemImage: showWriteBackSettings ? "chevron.up" : "gearshape")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    Spacer()
-                    Button {
-                        writeBackStatus = .sending
-                        Task { @MainActor in
-                            writeBackStatus = await model.submitWriteBack(
-                                apiURL: writeBackAPIURL,
-                                bearer: writeBackBearer,
-                                codexKeyID: writeBackCodexKeyID
-                            )
-                        }
-                    } label: {
-                        Label("立即回写", systemImage: "arrow.up.circle")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(writeBackStatus == .sending)
-                }
-
-                if showWriteBackSettings {
-                    WriteBackSettingsView(
-                        apiURL: $writeBackAPIURL,
-                        bearer: $writeBackBearer,
-                        codexKeyID: $writeBackCodexKeyID,
-                        intervalMinutes: $writeBackIntervalMinutes,
-                        enabled: $writeBackEnabled,
-                        lastSuccessAt: model.writeBackLastSuccessAt,
-                        consecutiveFailures: model.writeBackConsecutiveFailures,
-                        paused: model.writeBackPaused,
-                        onSave: {
-                            let trimmedURL = writeBackAPIURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let trimmedBearer = writeBackBearer.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let trimmedKeyID = writeBackCodexKeyID.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard let url = URL(string: trimmedURL), url.scheme == "https" || url.scheme == "http" else {
-                                writeBackStatus = .failure("请填写有效的 API 地址")
-                                return
-                            }
-                            guard !trimmedBearer.isEmpty else {
-                                writeBackStatus = .failure("请填写 Bearer")
-                                return
-                            }
-                            guard !trimmedKeyID.isEmpty else {
-                                writeBackStatus = .failure("请填写 Codex Key ID")
-                                return
-                            }
-                            model.saveWriteBackConfiguration()
-                            writeBackStatus = .saved
-                        },
-                        onVerify: {
-                            writeBackStatus = .verifying
-                            Task { @MainActor in
-                                writeBackStatus = await model.verifyWriteBack(
-                                    apiURL: writeBackAPIURL,
-                                    bearer: writeBackBearer,
-                                    codexKeyID: writeBackCodexKeyID
-                                )
-                            }
-                        }
-                    )
-                }
-                if let writeBackStatus {
-                    Text(writeBackStatus.title)
-                        .font(.caption)
-                        .foregroundStyle(writeBackStatus.color)
-                }
-
-                HStack(alignment: .bottom) {
-                    Text("直接使用本机 Codex 登录凭据读取 OpenAI 额度；读取失败时显示占位符。")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 8)
-                    Button("退出", action: onQuit)
-                        .font(.caption)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                }
-            }
-        }
-        .padding(12)
-        .frame(width: 300)
-        .background(.regularMaterial)
-        .onAppear { model.refresh() }
-    }
-}
 
 struct WriteBackSettingsView: View {
     @Binding var apiURL: String
@@ -1245,56 +1313,9 @@ extension View {
     }
 }
 
-struct QuotaRow: View {
-    let window: QuotaWindow
-
-    private var level: QuotaLevel { window.level }
-
-    private var resetText: String {
-        if window.name == "每周额度" {
-            return window.resetsAt.formatted(.dateTime.month().day().hour().minute())
-        }
-        return window.resetsAt.formatted(date: .omitted, time: .shortened)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text(window.name)
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                HStack(spacing: 5) {
-                    HStack(spacing: 3) {
-                        Image(systemName: level.symbol)
-                            .foregroundStyle(level.color)
-                        Text(level.title)
-                    }
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(level.badgeBackground, in: Capsule())
-                        .foregroundStyle(.primary.opacity(0.76))
-                    Text(window.remainingText)
-                        .font(.subheadline.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-            }
-            QuotaProgressBar(
-                value: window.remainingPercent,
-                tint: level.color,
-                status: level.title
-            )
-            Label("重置：\(resetText)", systemImage: "arrow.clockwise")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(10)
-        .glassCard(tint: level.color)
-        .animation(.easeOut(duration: 0.2), value: window.remainingPercent)
-    }
-}
 
 struct QuotaProgressBar: View {
+    @Environment(\.monitorStyle) private var style
     let value: Double
     let tint: Color
     let status: String
@@ -1304,13 +1325,14 @@ struct QuotaProgressBar: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color(nsColor: .separatorColor).opacity(0.55))
                 Capsule()
                     .fill(tint)
-                    .frame(width: proxy.size.width * clampedValue / 100)
+                    .scaleEffect(x: clampedValue / 100, y: 1, anchor: .leading)
+                    .animation(style.animation, value: clampedValue)
             }
         }
         .frame(height: 6)
@@ -1319,31 +1341,6 @@ struct QuotaProgressBar: View {
     }
 }
 
-struct QuotaPlaceholderRow: View {
-    let label: String
-    let status: RateLimitStatus
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text(label)
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                Text("—")
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            if status == .loading {
-                ProgressView().controlSize(.small)
-            }
-            Text(status == .live ? "接口未提供此窗口" : status == .loading ? "等待 Codex 返回实时额度" : "暂未读取到额度")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(10)
-        .glassCard(tint: .secondary)
-    }
-}
 
 struct EditQuotaView: View {
     @Binding var window: QuotaWindow
@@ -1368,34 +1365,6 @@ struct EditQuotaView: View {
                         .labelsHidden()
                 }
             }
-        }
-    }
-}
-
-struct LocalCodexUsageReader {
-    func read() -> (tokens: Int, available: Bool) {
-        let fileManager = FileManager.default
-        let paths = [
-            fileManager.homeDirectoryForCurrentUser.appending(path: ".codex/sqlite/state_5.sqlite"),
-            fileManager.homeDirectoryForCurrentUser.appending(path: ".codex/state_5.sqlite")
-        ]
-        guard let path = paths.first(where: { fileManager.fileExists(atPath: $0.path()) }) else {
-            return (0, false)
-        }
-
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        task.arguments = ["-readonly", path.path(), "SELECT COALESCE(SUM(tokens_used), 0) FROM threads;"]
-        let output = Pipe()
-        task.standardOutput = output
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            return (Int(text.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0, task.terminationStatus == 0)
-        } catch {
-            return (0, false)
         }
     }
 }
@@ -1429,11 +1398,17 @@ struct NamedRateLimits: Sendable {
 }
 
 struct DirectCodexUsageReader {
-    func read() async -> LiveRateLimits? {
-        let authURL = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".codex/auth.json")
+    static var authURL: URL {
+        let override = ProcessInfo.processInfo.environment["CODEX_HOME"] ?? ""
+        let directory = override.isEmpty ? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".codex") : URL(fileURLWithPath: override)
+        return directory.appendingPathComponent("auth.json")
+    }
+
+    func read() async throws -> LiveRateLimits {
+        let authURL = Self.authURL
         guard let data = try? Data(contentsOf: authURL),
               let auth = try? JSONDecoder().decode(CodexAuth.self, from: data),
-              !auth.tokens.accessToken.isEmpty else { return nil }
+              !auth.tokens.accessToken.isEmpty else { throw ProviderReadError.missingCredentials }
 
         var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
         request.timeoutInterval = 20
@@ -1444,12 +1419,24 @@ struct DirectCodexUsageReader {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let response = response as? HTTPURLResponse,
-                  response.statusCode == 200 else { return nil }
+            guard let response = response as? HTTPURLResponse else { throw ProviderReadError.invalidResponse }
+            switch response.statusCode {
+            case 200: break
+            case 401: throw ProviderReadError.missingCredentials
+            case 403: throw ProviderReadError.permissionDenied
+            case 429: throw ProviderReadError.rateLimited
+            default: throw ProviderReadError.http(response.statusCode)
+            }
             let payload = try JSONDecoder().decode(CodexWhamUsage.self, from: data)
-            return payload.liveRateLimits
+            guard let limits = payload.liveRateLimits else { throw ProviderReadError.invalidResponse }
+            return limits
+        } catch let error as ProviderReadError {
+            throw error
+        } catch is DecodingError {
+            throw ProviderReadError.invalidResponse
         } catch {
-            return nil
+            try Task.checkCancellation()
+            throw ProviderReadError.network
         }
     }
 }

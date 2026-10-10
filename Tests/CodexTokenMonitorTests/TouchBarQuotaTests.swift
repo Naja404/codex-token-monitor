@@ -4,7 +4,7 @@ import ImageIO
 import Testing
 @testable import CodexTokenMonitor
 
-@Test(arguments: [(0, TouchBarCatActivity.sleepy), (19, .sleepy), (20, .calm),
+@Test(arguments: [(0, TouchBarCatActivity.sleeping), (9, .sleeping), (10, .sleepy), (19, .sleepy), (20, .calm),
                   (49, .calm), (50, .playful), (79, .playful), (80, .energetic), (100, .energetic)])
 func catActivityFollowsRemainingQuota(remaining: Int, expected: TouchBarCatActivity) {
     let window = QuotaWindow(name: "", budget: 100, used: 100 - remaining, resetsAt: .now)
@@ -16,13 +16,34 @@ func catActivityFollowsRemainingQuota(remaining: Int, expected: TouchBarCatActiv
     let high = QuotaWindow(name: "", budget: 100, used: 5, resetsAt: .now)
     let low = QuotaWindow(name: "", budget: 100, used: 90, resetsAt: .now)
     #expect(TouchBarCatActivity(fiveHour: high, weekly: low, status: .live) == .sleepy)
-    #expect(TouchBarCatActivity(fiveHour: nil, weekly: nil, status: .live) == .unknown)
-    #expect(TouchBarCatActivity(fiveHour: high, weekly: high, status: .unavailable) == .unknown)
-    #expect(TouchBarCatActivity(fiveHour: high, weekly: high, status: .loading) == .unknown)
+    #expect(TouchBarCatActivity(fiveHour: nil, weekly: nil, status: .live) == .sleeping)
+    #expect(TouchBarCatActivity(fiveHour: high, weekly: high, status: .unavailable) == .sleeping)
+    #expect(TouchBarCatActivity(fiveHour: high, weekly: high, status: .loading) == .sleeping)
     #expect(TouchBarCatActivity(fiveHour: high, weekly: high, status: .manual) == .energetic)
     #expect(TouchBarCatActivity.energetic.cycleDuration < TouchBarCatActivity.playful.cycleDuration)
     #expect(TouchBarCatActivity.playful.cycleDuration < TouchBarCatActivity.calm.cycleDuration)
     #expect(TouchBarCatActivity.calm.cycleDuration < TouchBarCatActivity.sleepy.cycleDuration)
+}
+
+@Test func catSleepsBelowTenWithoutRoundingAndWithoutQuota() {
+    #expect(TouchBarCatActivity(remainingPercent: 9.99, status: .live) == .sleeping)
+    #expect(TouchBarCatActivity(remainingPercent: 10, status: .live) == .sleepy)
+    #expect(TouchBarCatActivity(remainingPercent: 5, status: .manual) == .sleeping)
+    #expect(TouchBarCatActivity(remainingPercent: nil, status: .manual) == .sleeping)
+}
+
+@Test @MainActor func sleepingCatBreathesOnlyWhileVisibleAndMotionAllowed() throws {
+    let cat = TouchBarRainbowCatView(frame: NSRect(x: 0, y: 0, width: 92, height: 30))
+    cat.update(activity: .sleeping, visible: true, reducedMotion: false)
+    #expect(cat.isAnimating)
+    #expect(cat.frames.count == 12)
+    let first = NSBitmapImageRep(cgImage: try #require(cat.frames.first)).tiffRepresentation
+    let breath = NSBitmapImageRep(cgImage: cat.frames[3]).tiffRepresentation
+    #expect(first != breath)
+    cat.update(activity: .sleeping, visible: true, reducedMotion: true)
+    #expect(!cat.isAnimating)
+    cat.update(activity: .sleeping, visible: false, reducedMotion: false)
+    #expect(!cat.isAnimating)
 }
 
 @Test func catStrideKeepsSupportOnGroundAndBendsDuringRecovery() {
@@ -110,19 +131,84 @@ func catActivityFollowsRemainingQuota(remaining: Int, expected: TouchBarCatActiv
     }
 }
 
+@Test @MainActor func touchBarDiagnosticsDoNotCreateABarWhileSampling() throws {
+    _ = NSApplication.shared
+    let controller = MonitorHostingController(rootView: MonitorView(
+        model: UsageModel(), onQuit: {}, onSettings: {}
+    ))
+    for _ in 0..<3 {
+        #expect(controller.touchBarDiagnosticState[.barCreated] == false)
+        #expect(controller.touchBarDiagnosticState[.presentationRequested] == false)
+    }
+    let bar = try #require(controller.touchBar)
+    #expect(controller.touchBarDiagnosticState[.barCreated] == true)
+    #expect(controller.touchBarDiagnosticState[.hasFourItems] == true)
+    #expect(controller.touchBar === bar)
+}
+
 @Test @MainActor func monitorControllerProvidesTouchBarItems() throws {
     _ = NSApplication.shared
     let controller = MonitorHostingController(rootView: MonitorView(
-        model: UsageModel(), onQuit: {}, onWriteBackSettingsVisibilityChanged: { _ in }
+        model: UsageModel(), onQuit: {}, onSettings: {}
     ))
     controller.loadView()
     controller.view.layoutSubtreeIfNeeded()
     let bar = try #require(controller.touchBar)
     #expect(bar.defaultItemIdentifiers.map(\.rawValue) == [
-        "codex.quota.cat", "codex.quota.fiveHour", "codex.quota.weekly", "codex.quota.refresh"
+        "codex.quota.cat", "codex.quota.fiveHour", "codex.quota.weekly", "codex.quota.refresh",
+        NSTouchBarItem.Identifier.otherItemsProxy.rawValue
     ])
     for identifier in bar.defaultItemIdentifiers {
         #expect(bar.item(forIdentifier: identifier) != nil)
+    }
+}
+
+@Test @MainActor func quotaBarSupportsCompositionWithSwiftUIHostingBar() throws {
+    _ = NSApplication.shared
+    let controller = MonitorHostingController(rootView: MonitorView(
+        model: UsageModel(), onQuit: {}, onSettings: {}
+    ))
+    let quotaBar = try #require(controller.touchBar)
+    let window = NSWindow(contentViewController: controller)
+    window.isReleasedWhenClosed = false
+    window.touchBar = quotaBar
+    defer { window.close() }
+    controller.view.layoutSubtreeIfNeeded()
+    // SwiftUI supplies its own bar closer to the first responder. Without a
+    // composition slot the window/controller bar can be replaced entirely.
+    let hostingBar = try #require(controller.view.touchBar)
+    #expect(hostingBar !== quotaBar)
+    #expect(quotaBar.defaultItemIdentifiers.contains(.otherItemsProxy))
+    #expect(quotaBar.templateItems.count == 4)
+}
+
+@Test @MainActor func settingsWindowProvidesQuotaTouchBarAndCat() throws {
+    _ = NSApplication.shared
+    let delegate = AppDelegate()
+    let window = delegate.makeSettingsWindow()
+    defer { window.close() }
+    let bar = try #require(window.touchBar)
+    #expect(window.contentViewController?.touchBar === bar)
+    let catItem = try #require(bar.item(forIdentifier: .init("codex.quota.cat")) as? NSCustomTouchBarItem)
+    #expect(catItem.view is TouchBarRainbowCatView)
+    #expect(bar.item(forIdentifier: .init("codex.quota.refresh")) != nil)
+}
+
+@Test @MainActor func resizingPopoverPreservesTouchBarAndCat() async throws {
+    _ = NSApplication.shared
+    let controller = MonitorHostingController(rootView: MonitorView(
+        model: UsageModel(), onQuit: {}, onSettings: {}
+    ))
+    controller.loadView()
+    let bar = try #require(controller.touchBar)
+    let catItem = try #require(bar.item(forIdentifier: .init("codex.quota.cat")) as? NSCustomTouchBarItem)
+    let catView = catItem.view
+    for height: CGFloat in [400, 540, 400] {
+        controller.rootView.viewportHeight = height
+        controller.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(controller.touchBar === bar)
+        #expect((controller.touchBar?.item(forIdentifier: .init("codex.quota.cat")) as? NSCustomTouchBarItem)?.view === catView)
     }
 }
 
@@ -130,7 +216,7 @@ func catActivityFollowsRemainingQuota(remaining: Int, expected: TouchBarCatActiv
     _ = NSApplication.shared
     let model = UsageModel()
     let controller = MonitorHostingController(rootView: MonitorView(
-        model: model, onQuit: {}, onWriteBackSettingsVisibilityChanged: { _ in }
+        model: model, onQuit: {}, onSettings: {}
     ))
     let bar = try #require(controller.touchBar)
     let refresh = try #require(bar.item(forIdentifier: .init("codex.quota.refresh")) as? NSButtonTouchBarItem)
@@ -298,7 +384,7 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
 @Test @MainActor func closingTouchBarStopsCatAnimation() throws {
     _ = NSApplication.shared
     let controller = MonitorHostingController(rootView: MonitorView(
-        model: UsageModel(), onQuit: {}, onWriteBackSettingsVisibilityChanged: { _ in }
+        model: UsageModel(), onQuit: {}, onSettings: {}
     ))
     let bar = try #require(controller.touchBar)
     let item = try #require(bar.item(forIdentifier: .init("codex.quota.cat")) as? NSCustomTouchBarItem)
@@ -357,7 +443,7 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
     #expect(weekly.detail == "重置 10月12日 18:05")
 }
 
-@Test(arguments: [90, 60, 35, 10, nil] as [Int?])
+@Test(arguments: [90, 60, 35, 10, 5, nil] as [Int?])
 @MainActor func rendersTouchBarReadmeAnimation(remaining: Int?) throws {
     _ = NSApplication.shared
     let reset = try #require(Calendar.current.date(from: DateComponents(
@@ -373,6 +459,7 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
     case .playful: filename = "touch-bar.gif"
     case .calm: filename = "touch-bar-calm.gif"
     case .sleepy: filename = "touch-bar-sleepy.gif"
+    case .sleeping: filename = remaining == nil ? "touch-bar-unknown.gif" : "touch-bar-sleeping.gif"
     case .unknown: filename = "touch-bar-unknown.gif"
     }
     let frameCount = activity == .unknown ? 1 : 12
@@ -410,6 +497,12 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
             chart.draw(chart.bounds)
         }
         NSGraphicsContext.restoreGraphicsState()
+        if frame == 0, activity == .sleeping,
+           let directory = ProcessInfo.processInfo.environment["TOUCH_BAR_README_GIF_DIRECTORY"] {
+            let url = URL(fileURLWithPath: directory)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try bitmap.representation(using: .png, properties: [:])?.write(to: url.appendingPathComponent(filename + ".png"))
+        }
         CGImageDestinationAddImage(destination, try #require(bitmap.cgImage), [
             kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: activity == .unknown ? 1 : activity.cycleDuration / 12]
         ] as CFDictionary)
@@ -418,7 +511,28 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
     let source = try #require(CGImageSourceCreateWithData(data, nil))
     #expect(CGImageSourceGetCount(source) == frameCount)
     if let directory = ProcessInfo.processInfo.environment["TOUCH_BAR_README_GIF_DIRECTORY"] {
+        try FileManager.default.createDirectory(at: URL(fileURLWithPath: directory), withIntermediateDirectories: true)
         try (data as Data).write(to: URL(fileURLWithPath: directory).appendingPathComponent(filename))
+    }
+}
+
+@Test func sleepingZsRiseFadeAndStayInsideTouchBar() {
+    let start = TouchBarSleepSymbolPose(frame: 1, index: 0)
+    let middle = TouchBarSleepSymbolPose(frame: 5, index: 0)
+    let end = TouchBarSleepSymbolPose(frame: 11, index: 0)
+    #expect(start.y < middle.y && middle.y < end.y)
+    #expect(start.x < end.x)
+    #expect(end.opacity < middle.opacity)
+    #expect(TouchBarSleepSymbolPose(frame: 0, index: 0).opacity == 0)
+    #expect(TouchBarSleepSymbolPose(frame: 0, index: 1).y != TouchBarSleepSymbolPose(frame: 0, index: 2).y)
+    for frame in 0..<12 {
+        for index in 0..<3 {
+            let pose = TouchBarSleepSymbolPose(frame: frame, index: index)
+            #expect(pose.x + pose.size < 92)
+            #expect(pose.y + 1 <= 30)
+            #expect(pose.y - pose.size >= 16)
+            #expect((0...1).contains(pose.opacity))
+        }
     }
 }
 
