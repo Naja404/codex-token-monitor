@@ -25,6 +25,91 @@ func catActivityFollowsRemainingQuota(remaining: Int, expected: TouchBarCatActiv
     #expect(TouchBarCatActivity.calm.cycleDuration < TouchBarCatActivity.sleepy.cycleDuration)
 }
 
+@Test func catStrideKeepsSupportOnGroundAndBendsDuringRecovery() {
+    for activity in [TouchBarCatActivity.calm, .playful] {
+        let poses = (0..<12).map { TouchBarCatLegPose(activity: activity, frame: $0, leg: 2) }
+        for frame in 0..<7 {
+            #expect(poses[frame].paw.y == 2)
+            #expect(poses[frame + 1].paw.x < poses[frame].paw.x)
+        }
+        for frame in 8..<12 {
+            #expect(poses[frame].paw.y > 2)
+            #expect(poses[frame].paw.x > poses[frame - 1].paw.x)
+            #expect(poses[frame].joint.y > poses[0].joint.y)
+        }
+        #expect(TouchBarCatLegPose(activity: activity, frame: 12, leg: 2).paw == poses[0].paw)
+    }
+}
+
+@Test func fastCatExtendsAndGathersFrontAndHindLegs() {
+    for leg in 0..<4 {
+        let extended = TouchBarCatLegPose(activity: .energetic, frame: 0, leg: leg)
+        let gathered = TouchBarCatLegPose(activity: .energetic, frame: 6, leg: leg)
+        let isHind = leg.isMultiple(of: 2)
+        #expect(isHind ? extended.paw.x < extended.hip.x - 4 : extended.paw.x > extended.hip.x + 4)
+        #expect(isHind ? gathered.paw.x > gathered.hip.x + 4 : gathered.paw.x < gathered.hip.x - 4)
+        #expect(TouchBarCatLegPose(activity: .energetic, frame: 12, leg: leg).paw == extended.paw)
+        for frame in 0..<12 {
+            let pose = TouchBarCatLegPose(activity: .energetic, frame: frame, leg: leg)
+            #expect(pose.paw.y >= 2 && pose.paw.y <= 8)
+        }
+    }
+    // Front legs support first, hind legs then take over; both pairs recover off the ground.
+    #expect(TouchBarCatLegPose(activity: .energetic, frame: 3, leg: 3).paw.y == 2)
+    #expect(TouchBarCatLegPose(activity: .energetic, frame: 3, leg: 2).paw.y > 2)
+    #expect(TouchBarCatLegPose(activity: .energetic, frame: 9, leg: 2).paw.y == 2)
+    #expect(TouchBarCatLegPose(activity: .energetic, frame: 9, leg: 3).paw.y > 2)
+}
+
+@Test func fastCatLiftsItsWholeBodyAndLandsOnTheBaseline() {
+    let hips = (0..<12).map { TouchBarCatLegPose(activity: .energetic, frame: $0, leg: 2).hip.y }
+    #expect((hips.max() ?? 0) - (hips.min() ?? 0) >= 3)
+    for leg in 0..<4 {
+        let airborne = TouchBarCatLegPose(activity: .energetic, frame: 7, leg: leg)
+        let landing = TouchBarCatLegPose(activity: .energetic, frame: 3, leg: leg)
+        #expect(airborne.hip.y > landing.hip.y + 2)
+        #expect(airborne.paw.y > 2)
+        #expect(airborne.joint.y > airborne.paw.y && airborne.joint.y < airborne.hip.y)
+    }
+    #expect(TouchBarCatLegPose(activity: .energetic, frame: 3, leg: 3).paw.y == 2)
+}
+
+@Test @MainActor func fastCatRenderedTorsoHasVisibleVerticalTravel() throws {
+    var centers: [Double] = []
+    for frame in 0..<12 {
+        let image = try #require(TouchBarRainbowCatView.makeFrame(activity: .energetic, frame: frame))
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        var rows: [Double] = []
+        for y in 0..<bitmap.pixelsHigh {
+            for x in (bitmap.pixelsWide * 38 / 92)..<(bitmap.pixelsWide * 55 / 92) {
+                let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+                // Select tan crust by channel ordering, independent of display color profile.
+                if color.alphaComponent > 0.9 && color.redComponent > 0.5
+                    && color.redComponent > color.greenComponent + 0.08
+                    && color.greenComponent > color.blueComponent + 0.08 {
+                    rows.append(Double(y) * 30 / Double(bitmap.pixelsHigh))
+                }
+            }
+        }
+        #expect(!rows.isEmpty)
+        centers.append(rows.reduce(0, +) / Double(max(1, rows.count)))
+    }
+    #expect(try #require(centers.max()) - #require(centers.min()) >= 3)
+}
+
+@Test func catGaitPreservesQuotaSpeedsAndAlwaysHasSupport() {
+    #expect(TouchBarCatActivity.sleepy.cycleDuration == 2.8)
+    #expect(TouchBarCatActivity.calm.cycleDuration == 1.6)
+    #expect(TouchBarCatActivity.playful.cycleDuration == 0.8)
+    #expect(TouchBarCatActivity.energetic.cycleDuration == 0.48)
+    for frame in 0..<12 {
+        let walking = (0..<4).map { TouchBarCatLegPose(activity: .calm, frame: frame, leg: $0) }
+        #expect(walking.filter { $0.paw.y == 2 }.count >= 2)
+        let trotting = (0..<4).map { TouchBarCatLegPose(activity: .playful, frame: frame, leg: $0) }
+        #expect(trotting.filter { $0.paw.y == 2 }.count >= 2)
+    }
+}
+
 @Test @MainActor func monitorControllerProvidesTouchBarItems() throws {
     _ = NSApplication.shared
     let controller = MonitorHostingController(rootView: MonitorView(
@@ -150,18 +235,18 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
     try #require(bitmap.representation(using: .png, properties: [:])).write(to: sheetURL)
 }
 
-@MainActor private func catRegion(frame: Int, rect: CGRect) throws -> CGImage {
-    let image = try #require(TouchBarRainbowCatView.makeFrame(activity: .energetic, frame: frame))
+@MainActor private func catRegion(frame: Int, rect: CGRect, activity: TouchBarCatActivity = .energetic) throws -> CGImage {
+    let image = try #require(TouchBarRainbowCatView.makeFrame(activity: activity, frame: frame))
     let scale = CGFloat(image.width) / 92
     return try #require(image.cropping(to: CGRect(x: rect.minX * scale,
         y: (30 - rect.maxY) * scale, width: rect.width * scale, height: rect.height * scale)))
 }
 
 @Test @MainActor func catPushesBackwardOnGroundAndRecoversForwardInAir() throws {
-    // Both frames have zero body bounce. For a right-facing cat, phase 3 is
+    // Both trotting frames have zero body bounce. For a right-facing cat, phase 3 is
     // the backward ground stroke; phase 9 is the lifted forward recovery.
     func pawPixels(frame: Int) throws -> Int {
-        let image = try catRegion(frame: frame, rect: CGRect(x: 40, y: 2, width: 6, height: 2))
+        let image = try catRegion(frame: frame, rect: CGRect(x: 40, y: 2, width: 6, height: 2), activity: .playful)
         let bitmap = NSBitmapImageRep(cgImage: image)
         var count = 0
         for y in 0..<bitmap.pixelsHigh {
@@ -179,11 +264,11 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
 }
 
 @Test @MainActor func catFaceMovesIndependentlyOfBodyBounce() throws {
-    // Frames 0 and 3 have the same body height: a rigidly attached face fails this check.
+    // Trotting frames 0 and 3 have the same body height: a rigidly attached face fails this check.
     let rect = CGRect(x: 60, y: 11, width: 20, height: 11)
-    let first = try #require(NSBitmapImageRep(cgImage: catRegion(frame: 0, rect: rect))
+    let first = try #require(NSBitmapImageRep(cgImage: catRegion(frame: 0, rect: rect, activity: .playful))
         .representation(using: .png, properties: [:]))
-    let next = try #require(NSBitmapImageRep(cgImage: catRegion(frame: 3, rect: rect))
+    let next = try #require(NSBitmapImageRep(cgImage: catRegion(frame: 3, rect: rect, activity: .playful))
         .representation(using: .png, properties: [:]))
     #expect(first != next)
 }
@@ -272,20 +357,34 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
     #expect(weekly.detail == "重置 10月12日 18:05")
 }
 
-@Test @MainActor func rendersTouchBarReadmeAnimation() throws {
+@Test(arguments: [90, 60, 35, 10, nil] as [Int?])
+@MainActor func rendersTouchBarReadmeAnimation(remaining: Int?) throws {
     _ = NSApplication.shared
+    let reset = try #require(Calendar.current.date(from: DateComponents(
+        year: 2026, month: 10, day: 12, hour: 18, minute: 5
+    )))
+    let hourly = remaining.map { QuotaWindow(name: "", budget: 100, used: 100 - $0, resetsAt: reset) }
+    let weekly = remaining.map { _ in QuotaWindow(name: "", budget: 100, used: 12, resetsAt: reset) }
+    let status: RateLimitStatus = remaining == nil ? .unavailable : .live
+    let activity = TouchBarCatActivity(fiveHour: hourly, weekly: weekly, status: status)
+    let filename: String
+    switch activity {
+    case .energetic: filename = "touch-bar-energetic.gif"
+    case .playful: filename = "touch-bar.gif"
+    case .calm: filename = "touch-bar-calm.gif"
+    case .sleepy: filename = "touch-bar-sleepy.gif"
+    case .unknown: filename = "touch-bar-unknown.gif"
+    }
+    let frameCount = activity == .unknown ? 1 : 12
     let data = NSMutableData()
     let destination = try #require(CGImageDestinationCreateWithData(
-        data, "com.compuserve.gif" as CFString, 12, nil
+        data, "com.compuserve.gif" as CFString, frameCount, nil
     ))
     CGImageDestinationSetProperties(destination, [kCGImagePropertyGIFDictionary: [
         kCGImagePropertyGIFLoopCount: 0
     ]] as CFDictionary)
-    let reset = try #require(Calendar.current.date(from: DateComponents(
-        year: 2026, month: 10, day: 12, hour: 18, minute: 5
-    )))
-    // Match the lower of the two displayed example quotas (60%): playful, not energetic.
-    for frame in 0..<12 {
+    // Derive activity from the displayed example quotas using the production policy.
+    for frame in 0..<frameCount {
         let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 900, pixelsHigh: 92,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
@@ -299,29 +398,27 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
         transform.scale(by: 2)
         transform.translateX(by: 8, yBy: 8)
         transform.concat()
-        let cat = try #require(TouchBarRainbowCatView.makeFrame(activity: .playful, frame: frame))
+        let cat = try #require(TouchBarRainbowCatView.makeFrame(activity: activity, frame: frame))
         NSImage(cgImage: cat, size: NSSize(width: 92, height: 30))
             .draw(in: NSRect(x: 0, y: 0, width: 92, height: 30))
-        for (label, width, used, date) in [("5小时", 146.0, 40, false), ("每周", 180.0, 12, true)] {
+        for (label, width, window, date) in [("5小时", 146.0, hourly, false), ("每周", 180.0, weekly, true)] {
             let shift = NSAffineTransform()
             shift.translateX(by: date ? 154 : 100, yBy: 0)
             shift.concat()
             let chart = TouchBarQuotaChartView(frame: NSRect(x: 0, y: 0, width: width, height: 30))
-            chart.content = TouchBarQuotaContent(label: label, window: QuotaWindow(
-                name: "", budget: 100, used: used, resetsAt: reset
-            ), status: .live, includesDate: date)
+            chart.content = TouchBarQuotaContent(label: label, window: window, status: status, includesDate: date)
             chart.draw(chart.bounds)
         }
         NSGraphicsContext.restoreGraphicsState()
         CGImageDestinationAddImage(destination, try #require(bitmap.cgImage), [
-            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: TouchBarCatActivity.playful.cycleDuration / 12]
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: activity == .unknown ? 1 : activity.cycleDuration / 12]
         ] as CFDictionary)
     }
     #expect(CGImageDestinationFinalize(destination))
     let source = try #require(CGImageSourceCreateWithData(data, nil))
-    #expect(CGImageSourceGetCount(source) == 12)
-    if let path = ProcessInfo.processInfo.environment["TOUCH_BAR_README_GIF_PATH"] {
-        try (data as Data).write(to: URL(fileURLWithPath: path))
+    #expect(CGImageSourceGetCount(source) == frameCount)
+    if let directory = ProcessInfo.processInfo.environment["TOUCH_BAR_README_GIF_DIRECTORY"] {
+        try (data as Data).write(to: URL(fileURLWithPath: directory).appendingPathComponent(filename))
     }
 }
 

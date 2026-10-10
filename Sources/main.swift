@@ -266,6 +266,52 @@ enum TouchBarCatActivity {
     }
 }
 
+struct TouchBarCatLegPose {
+    let hip: NSPoint
+    let joint: NSPoint
+    let paw: NSPoint
+
+    static func gallopBodyOffset(frame: Int) -> CGFloat {
+        // Extension in flight, foreleg landing, gathering in flight, hindleg push-off.
+        [1.5, 1, 0, -1, -1.5, -0.5, 1, 2, 1.5, 0, -1, -0.5][frame % 12]
+    }
+
+    init(activity: TouchBarCatActivity, frame: Int, leg: Int) {
+        // Far hind/front, then near hind/front. Walking staggers all four paws;
+        // trotting pairs diagonally opposite legs. Both keep a planted support phase.
+        let x: CGFloat = [43, 63, 40, 60][leg]
+        if activity == .energetic {
+            // Gallop: front paws reach forward as hind paws kick back, then gather underneath.
+            // Offset the far pair by one frame so the silhouette retains four distinct legs.
+            let phase = Double((frame + (leg < 2 ? 1 : 0)) % 12) * .pi / 6
+            let hind = leg.isMultiple(of: 2)
+            let reach = CGFloat(cos(phase) * (hind ? -6 : 6))
+            let lift = CGFloat(max(0, sin(phase) * (hind ? 1 : -1)) * 4)
+            let bodyOffset = Self.gallopBodyOffset(frame: frame)
+            let stretch = 1 + CGFloat(cos(Double(frame % 12) * .pi / 6) * 0.035)
+            let hipX = 60 + (x - 60) * stretch
+            hip = NSPoint(x: hipX, y: 10 + bodyOffset)
+            // During flight the paws follow the torso; on landing they stay above the floor.
+            paw = NSPoint(x: hipX + reach, y: 2 + lift + max(0, bodyOffset))
+            joint = NSPoint(x: hipX + reach * 0.35 + (hind ? 1.5 : -1.5),
+                            y: 5.5 + lift * 0.55 + bodyOffset * 0.7)
+            return
+        }
+        let offsets = activity == .calm ? [6, 3, 0, 9] : [6, 0, 0, 6]
+        let step = Double((frame + offsets[leg]) % 12)
+        let moving = activity == .calm || activity == .playful || activity == .energetic
+        let stride: CGFloat = activity == .calm ? 2 : 4
+        let recovery = max(0, (step - 7) / 5)
+        let reach = step <= 7 ? stride * (1 - 2 * step / 7) : stride * (2 * recovery - 1)
+        let lift = sin(recovery * .pi) * (activity == .calm ? 2 : 3)
+        hip = NSPoint(x: x, y: 10)
+        paw = NSPoint(x: x + (moving ? reach : 0), y: activity == .sleepy ? 6 : 2 + (moving ? lift : 0))
+        // Hind hock bends forward, front elbow bends back; neither leg telescopes.
+        joint = NSPoint(x: x + (leg.isMultiple(of: 2) ? 1.5 : -1.5) + (paw.x - x) * 0.3,
+                        y: 5.5 + (paw.y - 2) * 0.55)
+    }
+}
+
 @MainActor
 final class TouchBarRainbowCatView: NSView {
     private(set) var activity: TouchBarCatActivity = .unknown
@@ -378,42 +424,57 @@ final class TouchBarRainbowCatView: NSView {
                 NSRect(x: CGFloat(38 - column * 4), y: CGFloat(20 - row * 2 + wave), width: 4, height: 2).fill()
             }
         }
-        let bob = NSAffineTransform()
-        let bounce = running ? CGFloat(sin(phase * 2).rounded()) : (sleepy && (2...6).contains(frame) ? 1.0 : 0)
-        bob.translateX(by: 0, yBy: bounce)
-        bob.concat()
         let outline = NSColor(white: 0.2, alpha: 1)
         let fur = NSColor(white: 0.78, alpha: 1)
-        // Independent tail wag and diagonal pairs of paws: extend, push off, lift, recover.
-        let wag = moving ? CGFloat((sin(phase) * 3).rounded()) : 0
+        // Draw articulated legs before the body, with planted paws on a fixed baseline.
+        for leg in 0..<4 {
+            let pose = TouchBarCatLegPose(activity: activity, frame: frame, leg: leg)
+            let path = NSBezierPath()
+            path.move(to: pose.hip)
+            path.line(to: pose.joint)
+            path.line(to: pose.paw)
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            outline.setStroke()
+            path.lineWidth = 3.5
+            path.stroke()
+            let legColor = leg < 2 ? NSColor(white: 0.58, alpha: 1) : fur
+            legColor.setStroke()
+            path.lineWidth = 1.8
+            path.stroke()
+            outline.setFill()
+            let foot = NSRect(x: pose.paw.x - 1.5, y: pose.paw.y - 1, width: 4, height: 2.5)
+            NSBezierPath(roundedRect: foot, xRadius: 1, yRadius: 1).fill()
+            block(pose.paw.x - 0.5, pose.paw.y, 2.5, 1, legColor)
+        }
+        let bob = NSAffineTransform()
+        let bounce = activity == .energetic ? TouchBarCatLegPose.gallopBodyOffset(frame: frame)
+            : (moving ? CGFloat(sin(phase * 2) * 0.5) : (sleepy && (2...6).contains(frame) ? 1.0 : 0))
+        bob.translateX(by: 0, yBy: bounce)
+        if activity == .energetic {
+            bob.translateX(by: 60, yBy: 0)
+            bob.scaleX(by: 1 + CGFloat(cos(phase) * 0.035), yBy: 1)
+            bob.translateX(by: -60, yBy: 0)
+        }
+        bob.concat()
+        let wag = moving ? CGFloat(sin(phase - .pi / 3) * 1.5) : 0
         block(30, 12, 10, 4, outline)
         block(28, 12 + wag, 5, 6, outline)
         block(29, 14 + wag, 3, 3, fur)
         block(32, 13, 6, 2, fur)
-        for (index, x) in [40.0, 47, 56, 63].enumerated() {
-            let legPhase = phase + (index.isMultiple(of: 2) ? 0 : .pi)
-            let reach = moving ? CGFloat((cos(legPhase) * (running ? 4 : 2)).rounded()) : 0
-            // x decreases during stance; lift only on the forward recovery (x increasing).
-            let lift = moving ? CGFloat((max(0, -sin(legPhase)) * 3).rounded()) : 0
-            let footY: CGFloat = sleepy ? 6 : 2 + lift
-            let legColor = index.isMultiple(of: 2) ? fur : NSColor(white: 0.6, alpha: 1)
-            block(x, 5, 4, 5, outline)
-            block(x + reach, footY, 6, 4, outline)
-            block(x + reach + 1, footY + 1, 4, 2, legColor)
-            block(x + 1, footY + 2, 2, 5 - lift, legColor)
-        }
         block(36, 7, 29, 18, outline)
         block(38, 9, 25, 14, NSColor(red: 0.92, green: 0.75, blue: 0.51, alpha: 1))
         block(40, 11, 21, 10, NSColor(red: 0.96, green: 0.64, blue: 0.77, alpha: 1))
         for (x, y) in [(42.0, 18.0), (48, 14), (54, 19), (57, 13)] {
             block(x, y, 2, 2, NSColor(red: 0.76, green: 0.34, blue: 0.57, alpha: 1))
         }
-        // The head lags the body's bounce; ears flex and eyes squint on landing.
+        // Walking/trotting steady the gaze; galloping lets the head follow the whole-body rise.
         let head = NSAffineTransform()
-        let nod = running ? CGFloat((sin(phase - .pi / 3)).rounded()) : 0
-        head.translateX(by: moving ? CGFloat(cos(phase).rounded()) : 0, yBy: nod)
+        let nod = activity == .energetic ? CGFloat(sin(phase - .pi / 3) * 0.25)
+            : (moving ? -bounce * 0.6 + CGFloat(sin(phase - .pi / 3) * 0.25) : 0)
+        head.translateX(by: 0, yBy: nod)
         head.concat()
-        let earFold: CGFloat = running ? CGFloat(max(0, sin(phase * 2)) * 2).rounded() : 0
+        let earFold: CGFloat = moving ? CGFloat((1 + sin(phase * 2 - .pi / 3)) * 0.25) : 0
         outline.setFill()
         let ears = NSBezierPath()
         for points in [
@@ -427,7 +488,7 @@ final class TouchBarRainbowCatView: NSView {
         block(60, 10, 20, 12, fur)
         block(60 - earFold, 23, 3, 3 - earFold, .systemPink)
         block(77 - earFold, 23, 3, 3 - earFold, .systemPink)
-        let eyeHeight: CGFloat = sleepy ? 1 : (running && [2, 3, 8, 9].contains(frame) ? 2 : 4)
+        let eyeHeight: CGFloat = sleepy ? 1 : 4
         block(62, 16, 4, eyeHeight, outline)
         block(74, 16, 4, eyeHeight, outline)
         if eyeHeight == 4 {
