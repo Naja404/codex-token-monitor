@@ -25,10 +25,10 @@
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.3.0 下载 | 使用方式 |
+| 平台 | v1.3.1 下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.3.0/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.3.0/Codex-Token-Monitor-Windows-x64.zip) | 解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.3.1/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.3.1/Codex-Token-Monitor-Windows-x64.zip) | 解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
@@ -48,7 +48,7 @@ Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放
 
 ### Touch Bar（macOS v1.3.0+）
 
-以下 GIF 由当前源码的实际绘制代码生成，展示 Touch Bar 的额度区域，并非真机录屏。额度和重置时间均为示例数据；活跃程度取两个账户窗口中较低的余量。新版自然步态尚未包含在 v1.3.0 安装包中。
+以下 GIF 由当前源码的实际绘制代码生成，展示 Touch Bar 的额度区域，并非真机录屏。额度和重置时间均为示例数据；活跃程度取两个账户窗口中较低的余量。新版自然步态及快跑全身起伏已包含在 v1.3.1 安装包中。
 
 #### 快跑 · 余量 ≥80%
 
@@ -90,7 +90,7 @@ Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放
 
 使用 Apple 官方 AppKit `NSTouchBar` 接口，由弹窗控制器显式提供原生控件，仅在 Monitor 激活并打开弹窗时显示，切换到其他应用后由系统切换内容；不在后台常驻，也不修改系统控制条。若系统设置为只显示“展开的控制条”或功能键，请在“系统设置 → 键盘 → Touch Bar 设置”中选择“App 控制”。没有 Touch Bar 的 Mac 继续使用菜单栏，不受影响。
 
-此功能已包含在 v1.3.0 macOS 下载包中，也可从源码构建。原生 Touch Bar 已在 M1 + macOS 14.8 上确认能显示；最新跑动效果仍需实机体验。显示、额度联动和动画启停逻辑可通过 `swift test` 验证。
+Touch Bar 功能自 v1.3.0 起提供，v1.3.1 更新了步态，也可从源码构建。原生 Touch Bar 已在 M1 + macOS 14.8 上确认能显示；最新跑动效果仍需实机体验。显示、额度联动和动画启停逻辑可通过 `swift test` 验证。
 
 ## 运行环境
 
@@ -159,8 +159,8 @@ dotnet run --project windows/App -c Release
 
 ```bash
 # 示例：使用尚未发布的新版本号
-git tag v1.3.1
-git push origin v1.3.1
+git tag v1.3.2
+git push origin v1.3.2
 ```
 
 ## 已知限制
