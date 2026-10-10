@@ -272,6 +272,59 @@ func touchBarChartUsesRealRemainingFraction(remaining: Int) {
     #expect(weekly.detail == "重置 10月12日 18:05")
 }
 
+@Test @MainActor func rendersTouchBarReadmeAnimation() throws {
+    _ = NSApplication.shared
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(
+        data, "com.compuserve.gif" as CFString, 12, nil
+    ))
+    CGImageDestinationSetProperties(destination, [kCGImagePropertyGIFDictionary: [
+        kCGImagePropertyGIFLoopCount: 0
+    ]] as CFDictionary)
+    let reset = try #require(Calendar.current.date(from: DateComponents(
+        year: 2026, month: 10, day: 12, hour: 18, minute: 5
+    )))
+    // Match the lower of the two displayed example quotas (60%): playful, not energetic.
+    for frame in 0..<12 {
+        let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 900, pixelsHigh: 92,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .none
+        NSColor.black.setFill()
+        NSRect(x: 0, y: 0, width: 900, height: 92).fill()
+        let transform = NSAffineTransform()
+        transform.scale(by: 2)
+        transform.translateX(by: 8, yBy: 8)
+        transform.concat()
+        let cat = try #require(TouchBarRainbowCatView.makeFrame(activity: .playful, frame: frame))
+        NSImage(cgImage: cat, size: NSSize(width: 92, height: 30))
+            .draw(in: NSRect(x: 0, y: 0, width: 92, height: 30))
+        for (label, width, used, date) in [("5小时", 146.0, 40, false), ("每周", 180.0, 12, true)] {
+            let shift = NSAffineTransform()
+            shift.translateX(by: date ? 154 : 100, yBy: 0)
+            shift.concat()
+            let chart = TouchBarQuotaChartView(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+            chart.content = TouchBarQuotaContent(label: label, window: QuotaWindow(
+                name: "", budget: 100, used: used, resetsAt: reset
+            ), status: .live, includesDate: date)
+            chart.draw(chart.bounds)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        CGImageDestinationAddImage(destination, try #require(bitmap.cgImage), [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: TouchBarCatActivity.playful.cycleDuration / 12]
+        ] as CFDictionary)
+    }
+    #expect(CGImageDestinationFinalize(destination))
+    let source = try #require(CGImageSourceCreateWithData(data, nil))
+    #expect(CGImageSourceGetCount(source) == 12)
+    if let path = ProcessInfo.processInfo.environment["TOUCH_BAR_README_GIF_PATH"] {
+        try (data as Data).write(to: URL(fileURLWithPath: path))
+    }
+}
+
 @Test @MainActor func touchBarUsesPlaceholdersForMissingWindows() {
     let view = TouchBarQuotaContent(label: "5小时", window: nil, status: .live, includesDate: false)
     #expect(view.title == "5小时 —")
