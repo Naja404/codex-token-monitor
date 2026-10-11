@@ -9,8 +9,8 @@ struct QuotaMetric: Identifiable, Equatable, Sendable {
 
     var title: String {
         switch window {
-        case "5h": "5 小时"
-        case "weekly": "每周"
+        case "5h": L10n.text("5 小时")
+        case "weekly": L10n.text("每周")
         default: window
         }
     }
@@ -30,21 +30,21 @@ enum ProviderReadError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notInstalled: "未找到 agy。请安装官方 Antigravity CLI，或选择已安装的可执行文件。"
-        case .invalidPath: "CLI 路径不可执行。请选择 agy 文件的绝对路径。"
-        case .unsupportedCLI: "需要 agy 1.1.11 或更新的正式版本。请更新 CLI 后重新验证。"
-        case .launchFailed: "CLI 无法启动。请检查文件权限或重新安装。"
-        case .timeout: "查询超时，已停止本次进程。请检查网络后重试。"
-        case .outputLimit: "CLI 输出超过安全上限，已停止查询。请检查版本。"
-        case .missingCredentials: "未找到有效登录。请先在对应官方客户端或 CLI 中登录，再验证。"
-        case .credentialsExpired: "Claude Code 登录已过期。请在 Claude Code 中重新登录，再点击验证连接。"
-        case .credentialAccessDenied: "无法读取 Claude Code 钥匙串。请解锁登录钥匙串，点击验证连接并允许访问。"
-        case .permissionDenied: "账号没有查询权限或订阅资格。请检查当前登录账号。"
-        case .rateLimited: "服务暂时限流，自动刷新已放缓。请稍后重试。"
-        case .network: "请求失败。请检查网络、代理和官方服务状态后重试。"
-        case .invalidResponse: "没有读到有效额度，可能是接口格式变化。请更新客户端后重试。"
-        case .unsafeCommand: "CLI 将额度查询识别为对话，已暂停自动查询。请更新 agy 后重新验证。"
-        case .http(let code): "服务返回 HTTP \(code)。请稍后重试。"
+        case .notInstalled: L10n.text("未找到 agy。请安装官方 Antigravity CLI，或选择已安装的可执行文件。")
+        case .invalidPath: L10n.text("CLI 路径不可执行。请选择 agy 文件的绝对路径。")
+        case .unsupportedCLI: L10n.text("需要 agy 1.1.11 或更新的正式版本。请更新 CLI 后重新验证。")
+        case .launchFailed: L10n.text("CLI 无法启动。请检查文件权限或重新安装。")
+        case .timeout: L10n.text("查询超时，已停止本次进程。请检查网络后重试。")
+        case .outputLimit: L10n.text("CLI 输出超过安全上限，已停止查询。请检查版本。")
+        case .missingCredentials: L10n.text("未找到有效登录。请先在对应官方客户端或 CLI 中登录，再验证。")
+        case .credentialsExpired: L10n.text("Claude Code 登录已过期。请在 Claude Code 中重新登录，再点击验证连接。")
+        case .credentialAccessDenied: L10n.text("无法读取 Claude Code 钥匙串。请解锁登录钥匙串，点击验证连接并允许访问。")
+        case .permissionDenied: L10n.text("账号没有查询权限或订阅资格。请检查当前登录账号。")
+        case .rateLimited: L10n.text("服务暂时限流，自动刷新已放缓。请稍后重试。")
+        case .network: L10n.text("请求失败。请检查网络、代理和官方服务状态后重试。")
+        case .invalidResponse: L10n.text("没有读到有效额度，可能是接口格式变化。请更新客户端后重试。")
+        case .unsafeCommand: L10n.text("CLI 将额度查询识别为对话，已暂停自动查询。请更新 agy 后重新验证。")
+        case .http(let code): L10n.format("服务返回 HTTP %d。请稍后重试。", code)
         }
     }
 

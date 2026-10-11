@@ -7,16 +7,16 @@ enum TeamoReadError: Error, Equatable, LocalizedError {
     case keychain, unauthorized, rateLimited, invalidResponse, network, http(Int)
     var errorDescription: String? {
         switch self {
-        case .missingConfiguration: "请从 .zshrc 导入或保存 TeamoRouter 配置。"
-        case .invalidConfiguration: "请使用 HTTPS TeamoRouter 根地址和有效 Bearer；不支持其他代理地址。"
-        case .importUnsupported: "仅支持 .zshrc 中顶层、单行的字面量赋值；动态变量或条件配置请手动填写。未执行任何 Shell 命令。"
-        case .importUnreadable: "无法读取 ~/.zshrc，请手动填写配置。"
-        case .keychain: "无法访问 TeamoRouter 钥匙串配置，请点击保存或验证并允许访问。"
-        case .unauthorized: "TeamoRouter 密钥失效或权限不足，自动读取已暂停。"
-        case .rateLimited: "TeamoRouter 请求受限，冷却期间暂停查询。"
-        case .invalidResponse: "TeamoRouter 返回的数据不完整或格式不符，未将其当作零余额。"
-        case .network: "无法连接 TeamoRouter，请检查网络后重试。"
-        case .http(let status): "TeamoRouter 返回 HTTP \(status)，未读取成功。"
+        case .missingConfiguration: L10n.text("请从 .zshrc 导入或保存 TeamoRouter 配置。")
+        case .invalidConfiguration: L10n.text("请使用 HTTPS TeamoRouter 根地址和有效 Bearer；不支持其他代理地址。")
+        case .importUnsupported: L10n.text("仅支持 .zshrc 中顶层、单行的字面量赋值；动态变量或条件配置请手动填写。未执行任何 Shell 命令。")
+        case .importUnreadable: L10n.text("无法读取 ~/.zshrc，请手动填写配置。")
+        case .keychain: L10n.text("无法访问 TeamoRouter 钥匙串配置，请点击保存或验证并允许访问。")
+        case .unauthorized: L10n.text("TeamoRouter 密钥失效或权限不足，自动读取已暂停。")
+        case .rateLimited: L10n.text("TeamoRouter 请求受限，冷却期间暂停查询。")
+        case .invalidResponse: L10n.text("TeamoRouter 返回的数据不完整或格式不符，未将其当作零余额。")
+        case .network: L10n.text("无法连接 TeamoRouter，请检查网络后重试。")
+        case .http(let status): L10n.format("TeamoRouter 返回 HTTP %d，未读取成功。", status)
         }
     }
     var stopsAutomaticRefresh: Bool {

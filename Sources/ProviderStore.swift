@@ -16,7 +16,7 @@ enum MenuQuotaSource: String, CaseIterable, Identifiable {
     }
 }
 
-enum PopoverMode: String, CaseIterable { case summary = "简介", details = "明细" }
+enum MonitorProvider: String, CaseIterable { case codex, antigravity, claude, warp, teamo }
 
 @MainActor
 final class ProviderStore: ObservableObject {
@@ -32,7 +32,9 @@ final class ProviderStore: ObservableObject {
     private let readTeamo: @Sendable (Bool) async throws -> TeamoUsageSnapshot
     let appearance: MonitorAppearance
     @Published private(set) var popoverVisible = false
-    @Published var popoverMode: PopoverMode = .summary
+    @Published private(set) var expandedProviders: Set<MonitorProvider> = []
+    @Published private(set) var language: AppLanguage
+    static let rotationPresets = [10, 30, 60]
     @Published private(set) var warpEnabled: Bool
     @Published private(set) var warpSnapshot: WarpUsageSnapshot?
     @Published private(set) var warpError: WarpReadError?
@@ -95,6 +97,7 @@ final class ProviderStore: ObservableObject {
          }) {
         self.codex = codex
         self.defaults = defaults
+        language = AppLanguage(rawValue: defaults.string(forKey: "monitorLanguage") ?? "") ?? .simplifiedChinese
         appearance = MonitorAppearance(defaults: defaults)
         self.readAntigravity = readAntigravity
         self.readClaude = readClaude
@@ -126,7 +129,37 @@ final class ProviderStore: ObservableObject {
         }
     }
 
-    func beginPopover() { popoverMode = .summary; popoverVisible = true }
+    var enabledProviders: Set<MonitorProvider> {
+        Set(availableMenuSources.map {
+            switch $0 {
+            case .codex: MonitorProvider.codex
+            case .antigravityGemini, .antigravityThirdParty: .antigravity
+            case .claude: .claude
+            case .warp: .warp
+            case .teamo: .teamo
+            }
+        })
+    }
+
+    var allProviderDetailsExpanded: Bool {
+        !enabledProviders.isEmpty && enabledProviders.isSubset(of: expandedProviders)
+    }
+
+    func toggleProviderDetails(_ provider: MonitorProvider) {
+        if !expandedProviders.insert(provider).inserted { expandedProviders.remove(provider) }
+    }
+
+    func toggleAllProviderDetails() {
+        expandedProviders = allProviderDetailsExpanded ? [] : enabledProviders
+    }
+
+    func setLanguage(_ value: AppLanguage) {
+        defaults.set(value.rawValue, forKey: "monitorLanguage")
+        language = value
+        onChange?()
+    }
+
+    func beginPopover() { expandedProviders = []; popoverVisible = true }
     func endPopover() { popoverVisible = false }
 
     func setTeamoEnabled(_ enabled: Bool) {
@@ -552,25 +585,26 @@ final class ProviderStore: ObservableObject {
     }
 
     var menuLines: (first: String, second: String) {
-        guard !availableMenuSources.isEmpty else { return ("未启用", "点击设置") }
+        func localized(_ text: String) -> String { L10n.text(text, language: language) }
+        guard !availableMenuSources.isEmpty else { return (localized("未启用"), localized("点击设置")) }
         if displayedMenuSource == .teamo {
-            guard displayedQuotaStatus == .live, let quota = teamoSnapshot else { return ("TR 余额 —", "今日 —") }
-            return ("TR " + quota.balanceText, "今日 " + quota.costText)
+            guard displayedQuotaStatus == .live, let quota = teamoSnapshot else { return (localized("TR 余额 —"), localized("今日 —")) }
+            return ("TR " + quota.balanceText, localized("今日 ") + quota.costText)
         }
         if displayedMenuSource == .warp {
-            guard displayedQuotaStatus == .live, let quota = warpSnapshot else { return ("W Credits —", "重置 —") }
-            return ("W " + quota.balanceText, "重置 " + (quota.resetsAt?.formatted(.dateTime.month().day()) ?? "—"))
+            guard displayedQuotaStatus == .live, let quota = warpSnapshot else { return ("W Credits —", localized("重置 —")) }
+            return ("W " + quota.balanceText, localized("重置 ") + (quota.resetsAt.map { L10n.date($0, includesTime: false, language: language) } ?? "—"))
         }
         let metrics = displayedQuotaMetrics
         let prefix = displayedSourcePrefix
         func line(_ window: String, label: String) -> String {
             guard let metric = metrics.first(where: { $0.window == window }) else { return "\(label) — · —" }
             let reset = metric.resetsAt.map {
-                window == "weekly" ? $0.formatted(.dateTime.month().day()) : $0.formatted(date: .omitted, time: .shortened)
+                window == "weekly" ? L10n.date($0, includesTime: false, language: language) : $0.formatted(.dateTime.hour().minute().locale(language.locale))
             } ?? "—"
             return "\(label) \(Int(metric.remainingPercent.rounded()))% · \(reset)"
         }
-        return (prefix + line("5h", label: "5小时"), prefix + line("weekly", label: "一周"))
+        return (prefix + line("5h", label: localized("5小时")), prefix + line("weekly", label: localized("一周")))
     }
 
     static func codexMetrics(_ model: UsageModel) -> [QuotaMetric] {

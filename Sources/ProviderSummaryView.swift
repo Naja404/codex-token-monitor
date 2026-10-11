@@ -69,7 +69,7 @@ struct ProviderSummaryView: View {
                      successAt: store.warpLastSuccessAt) {
                     let quota = store.isRefreshingWarp ? nil : store.warpSnapshot
                     HStack(alignment: .firstTextBaseline) {
-                        Text("周期").font(.caption).monitorSecondary()
+                        Text(L10n.text("周期")).font(.caption).monitorSecondary()
                         Text(quota?.balanceText ?? "— Credits")
                             .font(.system(size: 17, weight: .semibold, design: .rounded)).monospacedDigit()
                             .contentTransition(.numericText()).animation(style.animation, value: quota?.remaining)
@@ -87,20 +87,28 @@ struct ProviderSummaryView: View {
 
     private func card<Content: View>(_ brand: ProviderBrand, loading: Bool, error: String?, manual: Bool = false, successAt: Date?,
                                      @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let provider = MonitorProvider(rawValue: brand.rawValue)!
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 7) {
+                DisclosureButton(title: brand.title, expanded: store.expandedProviders.contains(provider)) {
+                    store.toggleProviderDetails(provider)
+                }
                 ProviderLogo(brand: brand)
                 Text(brand.title).font(.subheadline.weight(.semibold))
                 Spacer()
-                if loading { ProgressView().controlSize(.mini).accessibilityLabel("正在读取") }
-                if manual { Text("手动").font(.caption2).monitorSecondary() }
+                if loading { ProgressView().controlSize(.mini).accessibilityLabel(L10n.text("正在读取")) }
+                if manual { Text(L10n.text("手动")).font(.caption2).monitorSecondary() }
                 if let error {
-                    Label("连接异常", systemImage: "exclamationmark.triangle")
+                    Label(L10n.text("连接异常"), systemImage: "exclamationmark.triangle")
                         .font(.caption2).monitorSecondary().help(error)
                         .accessibilityLabel(error)
                 }
             }
             content()
+            if store.expandedProviders.contains(provider) {
+                Divider().padding(.vertical, 4)
+                ProviderDetailView(model: model, store: store, provider: provider)
+            }
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,7 +132,7 @@ struct ProviderSummaryView: View {
                     }
                 }.frame(maxWidth: .infinity, alignment: .trailing)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel((window == "5h" ? "5 小时剩余 " : "每周剩余 ") + (metric.map { "\($0.remainingPercent)%" } ?? "未知"))
+                    .accessibilityLabel(L10n.text(window == "5h" ? "5 小时剩余 " : "每周剩余 ") + (metric.map { "\($0.remainingPercent)%" } ?? L10n.text("未知")))
             }
         }
     }

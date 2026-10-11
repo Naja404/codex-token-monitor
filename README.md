@@ -6,20 +6,30 @@
 
 <p align="center">在 macOS 菜单栏或 Windows 系统托盘中查看 Codex 订阅额度。</p>
 
-**v1.4.1 · 菜单栏翻牌动效**：自动轮播额度组时新增机场信息牌式翻转，保留系统单色和透明背景，支持关闭动效及系统“减少动态效果”。继续支持 Codex + Antigravity + Claude Code + Warp + TeamoRouter、多供应商简介 / 明细、三套主题及 Touch Bar 小猫。Windows 包保持原有 Codex 托盘功能，本次仅同步版本号。详见 [中英文版本说明](docs/releases/v1.4.1.md)。
+**v1.4.2 · 折叠概览与双语**：服务卡片默认折叠，支持全部展开 / 收起；新增中文简体 / English 即时切换、10 / 30 / 60 秒轮播快捷按钮及可折叠的连接设置。macOS 安装包已签名公证；Windows 保留原有 Codex 托盘功能，仅同步版本号。详见 [中英文版本说明](docs/releases/v1.4.2.md)。
 
 <p align="center">
-  <img src="docs/images/providers-walkthrough.gif" width="360" alt="多供应商菜单数据、简介与明细、主题切换演示；原生视图渲染，测试示例数据">
+  <img src="docs/images/providers-walkthrough.gif" width="360" alt="多供应商菜单数据、折叠与展开、主题切换演示；原生视图渲染，测试示例数据">
 </p>
 
 上方 GIF 由应用原生视图渲染，演示菜单栏双行数据、TeamoRouter 明细与主题切换，使用虚构示例值，不是真实账户录屏。Touch Bar 的各档动画见下方 GIF。
+
+### v1.4.2 更新
+
+- 弹窗不再切换“简介 / 明细”：每张服务卡默认折叠，点击箭头查看完整数据；支持全部展开 / 全部收起，每次重新打开弹窗恢复折叠。
+- “服务与账号”的连接配置可独立折叠；服务名称和监控开关始终可见，折叠不会清空未保存的输入。
+- 在 **供应商设置 → 菜单栏与显示 → 语言** 选择 **中文–简体 / English**，即时应用并自动保存。
+- 自动轮播新增 **10 秒 / 30 秒 / 60 秒**快捷按钮，仍支持自定义 **5–60 秒**；切换语言、折叠和选择轮播间隔都不会增加额度查询。
+- 退出按钮增加电源图标。Windows 不包含以上 macOS 界面优化。
+
+v1.4.2 for macOS: per-provider expandable details, Expand/Collapse All, collapsible account settings, instant Simplified Chinese/English switching, 10/30/60-second rotation presets, and a Quit icon. The macOS download is Developer ID signed and notarized. Provider polling and reporting payloads are unchanged.
 
 ## 功能
 
 - macOS 菜单栏双行显示 5 小时 / 每周余量与重置时间；Windows 托盘数字显示余量，悬浮提示注明两个窗口。
 - 点击菜单栏或托盘图标查看账户额度、进度条、重置时间和附加模型额度。
 - Codex 每 30 秒自动刷新；macOS v1.4.0 Antigravity 约 60 秒、Claude Code / Warp / TeamoRouter 约 5 分钟，支持手动刷新并遵守限流冷却。
-- macOS v1.4.0每次打开默认“简介”，紧凑查看已开启的额度；切换“明细”查看进度条、重置时间、来源和错误。离线品牌 Logo、系统深浅色与等宽数字方便扫读。
+- macOS 每次打开默认折叠，紧凑查看已开启的额度；点击每张卡片的箭头，或“全部展开”查看进度条、重置时间、来源和错误。离线品牌 Logo、系统深浅色与等宽数字方便扫读。
 - macOS 支持应用内 Touch Bar：显示两个账户窗口的余量、重置时间，并提供刷新按钮和额度联动彩虹猫（v1.3.0 新增）。
 - 可配置回写 API，将当前 5 小时与每周剩余额度发送到你的服务。
 - 自动回写默认关闭，可设置 1–60 分钟间隔；连续失败 10 次会自动暂停并提示。
@@ -85,7 +95,7 @@
 已使用本机 `.zshrc` 配置完成三个接口的真实只读验证；下面的界面截图仍使用测试示例数据，不含真实账户信息。可自行运行 `TEAMO_LIVE_CHECK=1 swift test --filter teamoLiveReadFromZshrc` 复核（仅输出查询汇总，不输出密钥；不会保存或开启配置）。
 
 <img src="docs/images/teamo-settings.png" width="500" alt="TeamoRouter 配置：从 zshrc 导入、保存到钥匙串和验证；测试示例数据">
-<img src="docs/images/teamo-cards.png" width="360" alt="TeamoRouter 简介与明细：余额、消费和已用 Token；测试示例数据">
+<img src="docs/images/teamo-cards.png" width="360" alt="TeamoRouter 折叠与展开：余额、消费和已用 Token；测试示例数据">
 
 ### 开启 Warp
 
@@ -102,9 +112,18 @@
 
 <img src="docs/images/warp-settings.png" width="520" alt="Warp 设置：保存个人 API Key、验证连接和独立开关；示例数据">
 
-### 简介 / 明细与轮播
+### 折叠明细、语言与轮播
 
-每次打开弹窗默认“简介”，已开启的供应商可紧凑查看；“明细”保留完整错误、重置时间、数据来源和成功时间。切换模式不会触发接口请求。Logo 离线打包，来源见 [品牌资源说明](docs/provider-logo-sources.md)；TeamoRouter 暂使用原生路由符号与名称，不冒用 Claude 的 Logo。
+每次打开弹窗默认折叠；每张服务卡保留余量概览，点击箭头展开完整错误、重置时间、数据来源和成功时间。顶部可“全部展开 / 全部收起”。“服务与账号”里的连接配置也可折叠，监控开关始终可见，折叠不丢失输入。折叠和展开不会触发接口请求。Logo 离线打包，来源见 [品牌资源说明](docs/provider-logo-sources.md)；TeamoRouter 使用原生路由符号与名称，不冒用 Claude 的 Logo。
+
+在 **供应商设置 → 菜单栏与显示 → 语言** 中选择 **中文–简体 / English**，立即生效并自动保存。轮播支持 **10 / 30 / 60 秒**快捷选择，也可用步进器设定 **5–60 秒**；改变间隔不会增加接口请求。
+
+<p>
+  <img src="docs/images/providers-overview-english.png" width="360" alt="英文折叠概览，原生渲染的虚构示例数据">
+  <img src="docs/images/providers-expanded-english.png" width="360" alt="英文展开 Codex 明细，深色示例数据">
+</p>
+
+<img src="docs/images/menu-language-settings.png" width="740" alt="英文设置：语言即时切换、10/30/60 秒轮播快捷按钮">
 
 ### 外观主题（macOS v1.4.0）
 
@@ -116,7 +135,7 @@
 | 极光 · 微光 | 蓝紫与青色柔光、柔和阴影、边缘高光 |
 | 深空 · 石墨 | 石墨背景、冰蓝点缀、精细分隔 |
 
-三套主题均提供浅色和深色，可选跟随系统；弹窗、简介 / 明细及设置使用统一样式。菜单栏仍为系统单色，品牌 Logo、额度警告颜色、读取频率与 Touch Bar 小猫规则不变。
+三套主题均提供浅色和深色，可选跟随系统；弹窗、折叠 / 展开卡片及设置使用统一样式。菜单栏仍为系统单色，品牌 Logo、额度警告颜色、读取频率与 Touch Bar 小猫规则不变。
 
 动效可选“轻柔 / 关闭”。轻柔模式提供切换淡入淡出、数值与进度过渡，以及**真实刷新成功**时的短暂卡片高光；不使用持续粒子或闪烁动画。关闭弹窗或离开应用后不播放弹窗动效。系统“减少动态效果”优先关闭动画；“减少透明度 / 增强对比度”使用实色背景，增强对比度时加强边界。
 
@@ -152,8 +171,8 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 </p>
 
 <p>
-  <img src="docs/images/providers-details-light.png" width="360" alt="明细模式：完整进度、重置时间、来源；示例数据">
-  <img src="docs/images/providers-details-dark.png" width="360" alt="深色明细模式；示例数据">
+  <img src="docs/images/providers-details-light.png" width="360" alt="展开卡片：完整进度、重置时间、来源；示例数据">
+  <img src="docs/images/providers-details-dark.png" width="360" alt="深色展开卡片；示例数据">
 </p>
 
 <p>
@@ -178,10 +197,10 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.1 下载 | 使用方式 |
+| 平台 | v1.4.2 下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.1/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.1/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.2/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.2/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
@@ -197,7 +216,7 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 3. 点击图标查看详情，失焦或按 Escape 收起；右键提供刷新、回写设置与退出。
 4. 托盘数字优先显示账户 5 小时余量，缺失时显示周余量；悬浮提示注明两者。
 
-Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放、DPAPI 配置恢复仍需实机验收。上方截图为 macOS v1.4.0界面；Windows 外观不同，本轮不包含多供应商功能。
+Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放、DPAPI 配置恢复仍需实机验收。上方截图为 macOS v1.4.2 界面；Windows 外观不同，本轮不包含多供应商功能。
 
 ### Touch Bar（macOS v1.3.0+）
 
@@ -323,20 +342,22 @@ dotnet run --project windows/App -c Release
 
 ## 发布新版本
 
-更新 `Packaging/Info.plist`、`windows/App/App.csproj` 及 Windows manifest 的版本后，推送尚未使用的 `v` 前缀标签。GitHub Actions 会构建 macOS arm64 和 Windows x64 ZIP，并添加到同一 Release。Windows 附件会在 macOS Release 创建及 Windows 构建成功后上传。
+更新 `Packaging/Info.plist`、`windows/App/App.csproj`、Windows manifest 的版本及 `docs/releases/<标签>.md` 中英文说明后，推送尚未使用的 `v` 前缀标签。GitHub Actions 构建两平台 ZIP，创建**草稿 Release**并附上 Windows 包；macOS ad-hoc 包仅保存为 Actions artifact。
+
+在本机用 Developer ID Application 签名正式 macOS App（Hardened Runtime + 时间戳），用 `notarytool` 提交公证。获得 Accepted 后用 `stapler` 附加票据，再重新压缩 ZIP；解压后验证 `codesign`、`stapler validate`、`spctl` 和 `--verify-resources`。上传这个 ZIP 到草稿，确认两平台构建成功及附件齐全后才发布。不要上传私钥或公证密码，不要用 ad-hoc artifact 替换正式附件。
 
 ```bash
 # 示例：使用尚未发布的新版本号
-git tag v1.3.2
-git push origin v1.3.2
+git tag v1.4.3
+git push origin v1.4.3
 ```
 
 ## 已知限制
 
 - 本工具显示 ChatGPT/Codex 订阅额度，不是 OpenAI API key 的 API 限流数据。
 - 此额度接口未作为公开稳定 SDK 契约发布；OpenAI 或 Codex 的内部实现变化可能影响读取结果。
-- v1.4.1 Release 的 macOS 附件已于 2026-10-11 更新为 **Developer ID 签名 + Apple 公证**，已附加公证票据并通过 Gatekeeper 验证。此前下载的 v1.4.1 包请重新下载；系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
-- 当前 GitHub Actions 构建产物仍使用 ad-hoc 签名；正式 macOS 附件需在本机完成签名、公证后替换，不能用重新运行 Actions 的产物覆盖已公证附件。证书私钥与公证凭据未上传 GitHub。
+- v1.4.2 Release 的 macOS 安装包使用 **Developer ID 签名 + Apple 公证**，已附加公证票据并通过 Gatekeeper 验证。系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
+- GitHub Actions 先创建草稿 Release；ad-hoc macOS 包仅作为 Actions artifact 保存，不附到 Release。正式 macOS 附件在本机签名、公证、附加票据后上传并发布，CI 不会覆盖已公证附件。证书私钥与公证凭据未上传 GitHub。
 - Windows 首版暂不提供手动额度编辑、MSI 安装器或原生 ARM64 包；托盘交互和多屏定位仍需实机验收。
 
 ## 回写 Token 余量

@@ -127,7 +127,7 @@ func warpRejectsMalformedResponse(_ json: String) {
     #expect(throws: WarpReadError.missingKey) { try WarpUsageReader.request(key: "wk-test\nheader") }
 }
 
-@Test @MainActor func warpOptInVerificationAndPopoverMode() async throws {
+@Test @MainActor func warpOptInVerificationAndCollapsedPopover() async throws {
     let name = "warp-test-\(UUID())"
     let defaults = UserDefaults(suiteName: name)!
     defer { defaults.removePersistentDomain(forName: name) }
@@ -135,10 +135,10 @@ func warpRejectsMalformedResponse(_ json: String) {
                               readWarp: { _ in try WarpUsageSnapshot.parse(Data(warpFixture.utf8)) })
     defer { store.stop() }
     #expect(!store.warpEnabled)
-    #expect(store.popoverMode == .summary)
-    store.popoverMode = .details
+    #expect(store.expandedProviders.isEmpty)
+    store.toggleProviderDetails(.warp)
     store.beginPopover()
-    #expect(store.popoverMode == .summary)
+    #expect(store.expandedProviders.isEmpty)
     store.refreshWarp()
     for _ in 0..<200 where store.isRefreshingWarp { try await Task.sleep(for: .milliseconds(5)) }
     #expect(store.warpSnapshot?.remaining == 900)

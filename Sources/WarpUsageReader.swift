@@ -6,13 +6,13 @@ enum WarpReadError: Error, Equatable, LocalizedError {
     case missingKey, keychain, unauthorized, rateLimited, invalidResponse, network, http(Int)
     var errorDescription: String? {
         switch self {
-        case .missingKey: "请保存 Warp 个人 API Key 后验证。"
-        case .keychain: "无法访问钥匙串，请点击保存或验证并允许访问。"
-        case .unauthorized: "Warp 密钥失效或权限不足；请更换个人 API Key。自动读取已暂停。"
-        case .rateLimited: "Warp 请求受限，冷却期间暂停查询。"
-        case .invalidResponse: "Warp 未返回可识别的额度，内部接口可能已变化。"
-        case .network: "无法连接 Warp，请检查网络后重试。"
-        case .http(let code): "Warp 返回 HTTP \(code)，稍后重试。"
+        case .missingKey: L10n.text("请保存 Warp 个人 API Key 后验证。")
+        case .keychain: L10n.text("无法访问钥匙串，请点击保存或验证并允许访问。")
+        case .unauthorized: L10n.text("Warp 密钥失效或权限不足；请更换个人 API Key。自动读取已暂停。")
+        case .rateLimited: L10n.text("Warp 请求受限，冷却期间暂停查询。")
+        case .invalidResponse: L10n.text("Warp 未返回可识别的额度，内部接口可能已变化。")
+        case .network: L10n.text("无法连接 Warp，请检查网络后重试。")
+        case .http(let code): L10n.format("Warp 返回 HTTP %d，稍后重试。", code)
         }
     }
     var stopsAutomaticRefresh: Bool {
@@ -27,7 +27,7 @@ struct WarpUsageSnapshot: Equatable, Sendable {
     let resetsAt: Date?
     let bonusRemaining: Double?
     var remaining: Double { max(0, limit - used) }
-    var balanceText: String { unlimited ? "无上限" : remaining.formatted(.number.precision(.fractionLength(0...1))) + " Credits" }
+    var balanceText: String { unlimited ? L10n.text("无上限") : remaining.formatted(.number.precision(.fractionLength(0...1))) + " Credits" }
     var metric: QuotaMetric? {
         guard !unlimited, limit > 0 else { return nil }
         return .init(id: "warp-cycle", window: "cycle", remainingPercent: remaining / limit * 100, resetsAt: resetsAt)

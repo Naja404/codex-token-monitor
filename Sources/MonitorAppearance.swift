@@ -6,17 +6,17 @@ enum MonitorTheme: String, CaseIterable, Identifiable {
     case native, aurora, graphite
     var id: String { rawValue }
     var title: String {
-        switch self { case .native: "原生 · 清透"; case .aurora: "极光 · 微光"; case .graphite: "深空 · 石墨" }
+        switch self { case .native: L10n.text("原生 · 清透"); case .aurora: L10n.text("极光 · 微光"); case .graphite: L10n.text("深空 · 石墨") }
     }
     var subtitle: String {
-        switch self { case .native: "干净、轻盈、熟悉"; case .aurora: "薄雾柔光，安静悬浮"; case .graphite: "精细线条，冷静有序" }
+        switch self { case .native: L10n.text("干净、轻盈、熟悉"); case .aurora: L10n.text("薄雾柔光，安静悬浮"); case .graphite: L10n.text("精细线条，冷静有序") }
     }
 }
 
 enum MonitorColorMode: String, CaseIterable {
     case system, light, dark
     var title: String {
-        switch self { case .system: "跟随系统"; case .light: "浅色"; case .dark: "深色" }
+        switch self { case .system: L10n.text("跟随系统"); case .light: L10n.text("浅色"); case .dark: L10n.text("深色") }
     }
     var override: ColorScheme? {
         switch self { case .system: nil; case .light: .light; case .dark: .dark }
@@ -26,7 +26,7 @@ enum MonitorColorMode: String, CaseIterable {
 
 enum MonitorMotion: String, CaseIterable {
     case gentle, off
-    var title: String { self == .gentle ? "轻柔" : "关闭" }
+    var title: String { self == .gentle ? L10n.text("轻柔") : L10n.text("关闭") }
     func allowsAnimation(reduceMotion: Bool, visible: Bool, active: Bool) -> Bool {
         self == .gentle && !reduceMotion && visible && active
     }
@@ -189,14 +189,15 @@ private struct MonitorSecondaryText: ViewModifier {
 
 struct MonitorAppearanceSettings: View {
     @ObservedObject var appearance: MonitorAppearance
+    @Environment(\.locale) private var locale
     @Environment(\.monitorStyle) private var style
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedTheme: MonitorTheme?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("为额度选择一种氛围").font(.headline)
-            Text("只改变外观，不改变读取频率、额度颜色含义或供应商 Logo。")
+            Text(L10n.text("为额度选择一种氛围", locale: locale)).font(.headline)
+            Text(L10n.text("只改变外观，不改变读取频率、额度颜色含义或供应商 Logo。"))
                 .font(.subheadline).monitorSecondary()
             HStack(spacing: 10) {
                 ForEach(MonitorTheme.allCases) { theme in
@@ -205,7 +206,7 @@ struct MonitorAppearanceSettings: View {
                             ThemeSwatch(theme: theme, dark: style.dark).frame(height: 90).clipped()
                             Text(theme.title).font(.subheadline.weight(.semibold))
                             HStack {
-                                Text(theme == appearance.theme ? "已选择" : "点击预览").font(.caption)
+                                Text(theme == appearance.theme ? L10n.text("已选择") : L10n.text("点击预览")).font(.caption)
                                 Spacer(minLength: 0)
                                 Image(systemName: theme == appearance.theme ? "checkmark.circle.fill" : "circle")
                             }.foregroundStyle(Color(nsColor: theme == appearance.theme ? style.palette.accent : style.palette.secondary))
@@ -225,17 +226,17 @@ struct MonitorAppearanceSettings: View {
             }
             Text(appearance.theme.subtitle).font(.subheadline).monitorSecondary()
             VStack(alignment: .leading, spacing: 16) {
-                Picker("明暗", selection: $appearance.mode) {
+                Picker(L10n.text("明暗"), selection: $appearance.mode) {
                     ForEach(MonitorColorMode.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.pickerStyle(.segmented)
-                Picker("界面动效", selection: $appearance.motion) {
+                Picker(L10n.text("界面动效"), selection: $appearance.motion) {
                     ForEach(MonitorMotion.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.pickerStyle(.segmented)
-                Text(reduceMotion ? "系统已开启“减少动态效果”，当前不播放界面动效。" : "轻柔：切换淡入淡出、数值过渡、刷新成功微光。无持续粒子动画，离开应用或关闭弹窗后停止。")
+                Text(reduceMotion ? L10n.text("系统已开启“减少动态效果”，当前不播放界面动效。") : L10n.text("轻柔：切换淡入淡出、数值过渡、刷新成功微光。无持续粒子动画，离开应用或关闭弹窗后停止。"))
                     .font(.caption).monitorSecondary().fixedSize(horizontal: false, vertical: true)
             }.padding(16).monitorSurface()
-            Label("即时生效 · 自动保存", systemImage: "checkmark.circle").font(.caption).monitorSecondary()
-            Text("主题适用于弹窗和设置；菜单栏保持系统单色。减少透明度或增强对比度时使用实色背景。Touch Bar 小猫的动作规则保持不变。")
+            Label(L10n.text("即时生效 · 自动保存"), systemImage: "checkmark.circle").font(.caption).monitorSecondary()
+            Text(L10n.text("主题适用于弹窗和设置；菜单栏保持系统单色。减少透明度或增强对比度时使用实色背景。Touch Bar 小猫的动作规则保持不变。"))
                 .font(.caption).monitorSecondary().fixedSize(horizontal: false, vertical: true)
         }
     }

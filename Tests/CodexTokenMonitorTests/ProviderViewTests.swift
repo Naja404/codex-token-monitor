@@ -13,7 +13,7 @@ import Testing
     let model = UsageModel(defaults: defaults)
     let store = ProviderStore(codex: model, defaults: defaults)
     defer { store.stop() }
-    let host = NSHostingView(rootView: MonitorSettingsView(model: model, store: store))
+    let host = NSHostingView(rootView: MonitorSettingsView(model: model, store: store, expandedProviders: [.antigravity]))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 600),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
@@ -75,10 +75,10 @@ import Testing
         store.beginPopover()
         try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}).environment(\.colorScheme, scheme),
                     size: NSSize(width: 360, height: 540), url: directory.appendingPathComponent("overview-\(label).png"))
-        store.popoverMode = .details
+        store.toggleAllProviderDetails()
         try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}).environment(\.colorScheme, scheme),
                     size: NSSize(width: 360, height: 540), url: directory.appendingPathComponent("details-\(label).png"))
-        try capture(WarpProviderSettings(store: store).padding(16)
+        try capture(WarpProviderSettings(store: store, expanded: true).padding(16)
             .frame(width: 520, height: 380, alignment: .top)
             .background { MonitorBackdrop() }.modifier(MonitorThemeScope(appearance: store.appearance))
             .environment(\.colorScheme, scheme),
@@ -95,7 +95,7 @@ import Testing
             store.beginPopover()
             try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}),
                         size: .init(width: 360, height: 540), url: directory.appendingPathComponent("theme-\(theme.rawValue)-\(mode.rawValue).png"))
-            store.popoverMode = .details
+            store.toggleAllProviderDetails()
             try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}),
                         size: .init(width: 360, height: 540), url: directory.appendingPathComponent("theme-\(theme.rawValue)-\(mode.rawValue)-details.png"))
             try capture(MonitorSettingsView(model: model, store: store, initialSection: .appearance),
@@ -112,9 +112,9 @@ import Testing
 
     // A reproducible native-view walkthrough, not a recording of a real account.
     let gifURL = directory.appendingPathComponent("providers-walkthrough.gif")
-    let frames: [(MonitorTheme, PopoverMode, MenuQuotaSource)] = [
-        (.native, .summary, .codex), (.native, .summary, .teamo),
-        (.aurora, .details, .teamo), (.graphite, .summary, .warp)
+    let frames: [(MonitorTheme, Bool, MenuQuotaSource)] = [
+        (.native, false, .codex), (.native, false, .teamo),
+        (.aurora, true, .teamo), (.graphite, false, .warp)
     ]
     let destination = try #require(CGImageDestinationCreateWithURL(
         gifURL as CFURL, "com.compuserve.gif" as CFString, frames.count, nil))
@@ -123,11 +123,12 @@ import Testing
     store.appearance.motion = .off
     for (theme, mode, source) in frames {
         store.appearance.theme = theme
-        store.popoverMode = mode
+        store.beginPopover()
+        if mode { store.toggleAllProviderDetails() }
         store.setMenuSource(source)
         let view = VStack(spacing: 0) {
             HStack {
-                Text("示例数据 · \(mode.rawValue)").font(.caption)
+                Text(mode ? "示例数据 · 展开" : "示例数据 · 折叠").font(.caption)
                 Spacer()
                 VStack(spacing: 0) {
                     Text(store.menuLines.first)
@@ -186,7 +187,7 @@ import Testing
     defer { defaults.removePersistentDomain(forName: name) }
     let store = ProviderStore(codex: UsageModel(defaults: defaults), defaults: defaults)
     defer { store.stop() }
-    let host = NSHostingView(rootView: WarpProviderSettings(store: store))
+    let host = NSHostingView(rootView: WarpProviderSettings(store: store, expanded: true))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 380),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
@@ -218,10 +219,11 @@ import Testing
     for _ in 0..<200 where store.isRefreshingWarp { try await Task.sleep(for: .milliseconds(5)) }
     #expect(store.warpError == .missingKey)
     #expect(store.warpSnapshot == nil)
-    for mode in PopoverMode.allCases {
-        store.popoverMode = mode
+    for mode in [false, true] {
+        store.beginPopover()
+        if mode { store.toggleAllProviderDetails() }
         try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}),
-                    size: .init(width: 360, height: 540), url: directory.appendingPathComponent("failed-\(mode == .summary ? "summary" : "details").png"))
+                    size: .init(width: 360, height: 540), url: directory.appendingPathComponent("failed-\(!mode ? "summary" : "details").png"))
     }
 }
 
@@ -232,7 +234,7 @@ import Testing
     defer { defaults.removePersistentDomain(forName: name) }
     let store = ProviderStore(codex: UsageModel(defaults: defaults), defaults: defaults)
     defer { store.stop() }
-    let host = NSHostingView(rootView: TeamoProviderSettings(store: store))
+    let host = NSHostingView(rootView: TeamoProviderSettings(store: store, expanded: true))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 560),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
@@ -270,7 +272,7 @@ import Testing
     for _ in 0..<200 where store.isRefreshingTeamo { try await Task.sleep(for: .milliseconds(5)) }
     for mode in [MonitorColorMode.light, .dark] {
         store.appearance.mode = mode
-        try capture(TeamoProviderSettings(store: store).padding(16)
+        try capture(TeamoProviderSettings(store: store, expanded: true).padding(16)
             .frame(width: 500, height: 580, alignment: .top)
             .background { MonitorBackdrop() }.modifier(MonitorThemeScope(appearance: store.appearance)),
                     size: .init(width: 500, height: 580), url: directory.appendingPathComponent("teamo-settings-\(mode.rawValue).png"))
@@ -293,6 +295,62 @@ import Testing
     try #require(bitmap.representation(using: .png, properties: [:])).write(to: url)
 }
 
+@Test(.enabled(if: ProcessInfo.processInfo.environment["INTERACTION_PREVIEW_DIR"] != nil))
+@MainActor func rendersDisclosureAndLanguageLayouts() async throws {
+    _ = NSApplication.shared
+    let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["INTERACTION_PREVIEW_DIR"]))
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let suite = "interaction-preview-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set("/preview/missing-agy", forKey: "antigravityCLIPath")
+    defaults.set(true, forKey: "claudeEnabled")
+    defaults.set(true, forKey: "teamoEnabled")
+    let model = UsageModel(defaults: defaults, readUsage: {
+        LiveRateLimits(primary: .init(usedPercent: 23, resetsAt: 1_792_000_000),
+                       secondary: .init(usedPercent: 62, resetsAt: 1_792_500_000), planName: "Pro", additional: [])
+    })
+    let store = ProviderStore(codex: model, defaults: defaults, readClaude: { _ in
+        .init(metrics: try ClaudeUsageReport.parse(Data(claudeUsageFixture.utf8)), planName: "Max")
+    }, readTeamo: { _ in try teamoFixture() })
+    defer { store.stop() }
+    store.refreshAll()
+    for _ in 0..<200 {
+        if model.rateLimitStatus == .live && !store.isRefreshingClaude && !store.isRefreshingTeamo { break }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    #expect(model.rateLimitStatus == .live)
+    store.setMenuRotationEnabled(true)
+    // Synchronous rendering below cannot interleave other main-actor tests.
+    let original = UserDefaults.standard.object(forKey: "monitorLanguage")
+    defer { UserDefaults.standard.set(original, forKey: "monitorLanguage") }
+    for language in AppLanguage.allCases {
+        UserDefaults.standard.set(language.rawValue, forKey: "monitorLanguage")
+        store.setLanguage(language)
+        for mode in [MonitorColorMode.light, .dark] {
+            store.appearance.mode = mode
+            store.appearance.motion = .off
+            let suffix = "\(language.rawValue)-\(mode.rawValue)"
+            store.beginPopover()
+            try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}),
+                        size: .init(width: 360, height: 540), url: directory.appendingPathComponent("collapsed-\(suffix).png"))
+            store.toggleProviderDetails(.codex)
+            try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}),
+                        size: .init(width: 360, height: 540), url: directory.appendingPathComponent("expanded-\(suffix).png"))
+            for section in MonitorSettingsSection.allCases {
+                try capture(MonitorSettingsView(model: model, store: store, initialSection: section),
+                            size: .init(width: 740, height: 600), url: directory.appendingPathComponent("settings-\(section.id)-\(suffix).png"))
+            }
+            try capture(MonitorSettingsView(model: model, store: store, expandedProviders: [.antigravity]),
+                        size: .init(width: 740, height: 600), url: directory.appendingPathComponent("connection-\(suffix).png"))
+            try capture(TeamoProviderSettings(store: store, expanded: true).padding(16)
+                .frame(width: 510, height: 720, alignment: .top)
+                .modifier(MonitorThemeScope(appearance: store.appearance)),
+                        size: .init(width: 510, height: 720), url: directory.appendingPathComponent("teamo-\(suffix).png"))
+        }
+    }
+}
+
 @Test(.enabled(if: ProcessInfo.processInfo.environment["PROVIDER_PREVIEW_DIR"] != nil))
 @MainActor func rendersClaudeSettings() async throws {
     _ = NSApplication.shared
@@ -309,7 +367,7 @@ import Testing
     for _ in 0..<200 where store.isRefreshingClaude { try await Task.sleep(for: .milliseconds(5)) }
     #expect(store.claudeLastSuccessAt != nil)
     for (label, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
-        try capture(ClaudeProviderSettings(store: store).padding(16)
+        try capture(ClaudeProviderSettings(store: store, expanded: true).padding(16)
             .frame(width: 520, height: 380, alignment: .top)
             .background { MonitorBackdrop() }.modifier(MonitorThemeScope(appearance: store.appearance))
             .environment(\.colorScheme, scheme),

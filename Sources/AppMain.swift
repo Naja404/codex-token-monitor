@@ -7,7 +7,8 @@ enum MonitorLauncher {
     @MainActor static func main() {
         if CommandLine.arguments.contains("--verify-resources") {
             let valid = ProviderBrand.allCases.allSatisfy { $0.image != nil }
-            print(valid ? "Provider resources verified" : "Provider resources missing")
+                && L10n.text("全部展开", language: .english) == "Expand all"
+            print(valid ? "Provider and localization resources verified" : "Provider or localization resources missing")
             exit(valid ? EXIT_SUCCESS : EXIT_FAILURE)
         }
         if TouchBarDiagnostics.nativeProbeRequested() {
@@ -250,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let window = NSWindow(contentViewController: controller)
         window.touchBar = controller.touchBar
         window.delegate = self
-        window.title = "Codex Token Monitor · 设置"
+        window.title = L10n.text("Codex Token Monitor · 设置")
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 740, height: 600))
         window.minSize = NSSize(width: 680, height: 520)
@@ -260,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func updateStatusTitle() {
+        settingsWindow?.title = L10n.text("Codex Token Monitor · 设置")
         monitorController.updateQuotaTouchBar()
         let (fiveHour, weekly) = providers.menuLines
         statusItem?.button?.title = ""
@@ -301,7 +303,7 @@ final class MonitorHostingController: NSHostingController<MonitorView> {
          .catAnimating: catView.isAnimating, .presentationRequested: touchBarVisible]
     }
     private lazy var refreshItem = NSButtonTouchBarItem(
-        identifier: .init("codex.quota.refresh"), title: "刷新", target: self, action: #selector(refreshQuota)
+        identifier: .init("codex.quota.refresh"), title: L10n.text("刷新"), target: self, action: #selector(refreshQuota)
     )
 
     override func makeTouchBar() -> NSTouchBar? {
@@ -327,34 +329,34 @@ final class MonitorHostingController: NSHostingController<MonitorView> {
         if store.displayedMenuSource == .teamo {
             let quota = status == .live ? store.teamoSnapshot : nil
             update(fiveHourItem, content: TouchBarQuotaContent(
-                label: "TR 余额", metric: nil, status: status, includesDate: false,
-                titleOverride: quota.map { "TR " + $0.balanceText }, detailOverride: quota.map { _ in "账户余额 · USD" }
+                label: L10n.text("TR 余额"), metric: nil, status: status, includesDate: false,
+                titleOverride: quota.map { "TR " + $0.balanceText }, detailOverride: quota.map { _ in L10n.text("账户余额 · USD") }
             ))
             update(weeklyItem, content: TouchBarQuotaContent(
-                label: "今日消费", metric: nil, status: status, includesDate: false,
-                titleOverride: quota.map { "今日 " + $0.costText }, detailOverride: quota.map { _ in "当前 Key · 本地日期" }
+                label: L10n.text("今日消费"), metric: nil, status: status, includesDate: false,
+                titleOverride: quota.map { L10n.text("今日 ") + $0.costText }, detailOverride: quota.map { _ in L10n.text("当前 Key · 本地日期") }
             ))
         } else if store.displayedMenuSource == .warp {
             let quota = status == .live ? store.warpSnapshot : nil
             update(fiveHourItem, content: TouchBarQuotaContent(
-                label: "W 周期", metric: quota?.metric, status: status, includesDate: true,
+                label: L10n.text("W 周期"), metric: quota?.metric, status: status, includesDate: true,
                 titleOverride: quota.map { "W " + $0.balanceText },
-                detailOverride: quota.map { $0.resetsAt.map { "重置 " + $0.formatted(.dateTime.month().day().hour().minute()) } ?? "未提供重置时间" }
+                detailOverride: quota.map { $0.resetsAt.map { L10n.text("重置 ") + L10n.date($0) } ?? L10n.text("未提供重置时间") }
             ))
             update(weeklyItem, content: TouchBarQuotaContent(
-                label: "额外 Credits", metric: nil, status: status, includesDate: true,
-                titleOverride: quota.map { "额外 " + ($0.bonusRemaining?.formatted(.number.precision(.fractionLength(0...1))) ?? "—") + " Credits" },
-                detailOverride: quota.map { _ in "个人额度 · 不含团队" }
+                label: L10n.text("额外 Credits"), metric: nil, status: status, includesDate: true,
+                titleOverride: quota.map { L10n.text("额外 ") + ($0.bonusRemaining?.formatted(.number.precision(.fractionLength(0...1))) ?? "—") + " Credits" },
+                detailOverride: quota.map { _ in L10n.text("个人额度 · 不含团队") }
             ))
         } else {
             update(fiveHourItem, content: TouchBarQuotaContent(
-                label: store.displayedSourcePrefix + "5小时", metric: metrics.first { $0.window == "5h" }, status: status, includesDate: false
+                label: store.displayedSourcePrefix + L10n.text("5小时"), metric: metrics.first { $0.window == "5h" }, status: status, includesDate: false
             ))
             update(weeklyItem, content: TouchBarQuotaContent(
-                label: store.displayedSourcePrefix + "每周", metric: metrics.first { $0.window == "weekly" }, status: status, includesDate: true
+                label: store.displayedSourcePrefix + L10n.text("每周"), metric: metrics.first { $0.window == "weekly" }, status: status, includesDate: true
             ))
         }
-        refreshItem.title = status == .loading ? "读取中" : "刷新"
+        refreshItem.title = status == .loading ? L10n.text("读取中") : L10n.text("刷新")
         refreshItem.isEnabled = store.canRefreshDisplayedSource
         catView.update(activity: TouchBarCatActivity(remainingPercent: metrics.filter { ["5h", "weekly", "cycle"].contains($0.window) }.map(\.remainingPercent).min(), status: status),
                        visible: touchBarVisible,
@@ -910,17 +912,17 @@ final class UsageModel: ObservableObject {
     }
 
     func writeBack(apiURL: String, bearer: String, codexKeyID: String) async -> WriteBackStatus {
-        guard monitoringEnabled else { return .failure("Codex 监控已关闭") }
+        guard monitoringEnabled else { return .failure(L10n.text("Codex 监控已关闭")) }
         let trimmedURL = apiURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBearer = bearer.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKeyID = codexKeyID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmedURL), url.scheme == "https" || url.scheme == "http" else {
-            return .failure("请填写有效的 API 地址")
+            return .failure(L10n.text("请填写有效的 API 地址"))
         }
-        guard !trimmedBearer.isEmpty else { return .failure("请填写 Bearer") }
-        guard !trimmedKeyID.isEmpty else { return .failure("请填写 Codex Key ID") }
+        guard !trimmedBearer.isEmpty else { return .failure(L10n.text("请填写 Bearer")) }
+        guard !trimmedKeyID.isEmpty else { return .failure(L10n.text("请填写 Codex Key ID")) }
         guard rateLimitStatus == .live, let fiveHour, let weekly else {
-            return .failure("回写需要实时账户额度同时提供 5 小时和每周窗口")
+            return .failure(L10n.text("回写需要实时账户额度同时提供 5 小时和每周窗口"))
         }
 
         let payload = WriteBackPayload(
@@ -944,14 +946,14 @@ final class UsageModel: ObservableObject {
             request.httpBody = try JSONEncoder().encode(payload)
             let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                return .failure("API 返回无效响应")
+                return .failure(L10n.text("API 返回无效响应"))
             }
             guard (200..<300).contains(httpResponse.statusCode) else {
-                return .failure("API 返回 HTTP \(httpResponse.statusCode)")
+                return .failure(L10n.format("API 返回 HTTP %d", httpResponse.statusCode))
             }
             return .success
         } catch {
-            return .failure("回写失败：\(error.localizedDescription)")
+            return .failure(L10n.format("回写失败：%@", error.localizedDescription))
         }
     }
 
@@ -1010,11 +1012,11 @@ enum WriteBackStatus: Equatable {
 
     var title: String {
         switch self {
-        case .sending: "正在回写…"
-        case .verifying: "正在验证…"
-        case .saved: "配置已保存"
-        case .verified: "连接验证成功"
-        case .success: "回写成功"
+        case .sending: L10n.text("正在回写…")
+        case .verifying: L10n.text("正在验证…")
+        case .saved: L10n.text("配置已保存")
+        case .verified: L10n.text("连接验证成功")
+        case .success: L10n.text("回写成功")
         case .failure(let message): message
         }
     }
@@ -1134,10 +1136,10 @@ enum QuotaLevel {
 
     var title: String {
         switch self {
-        case .sufficient: "充足"
-        case .attention: "注意"
-        case .low: "偏低"
-        case .critical: "紧急"
+        case .sufficient: L10n.text("充足")
+        case .attention: L10n.text("注意")
+        case .low: L10n.text("偏低")
+        case .critical: L10n.text("紧急")
         }
     }
 
@@ -1197,26 +1199,27 @@ struct TouchBarQuotaContent {
     var title: String {
         if status == .live, let titleOverride { return titleOverride }
         guard let window = displayedWindow else { return "\(label) —" }
-        let suffix = status == .manual ? "（手动）" : ""
+        let suffix = status == .manual ? L10n.text("（手动）") : ""
         return "\(label) \(Int(window.remainingPercent.rounded()))%\(suffix)"
     }
 
     var detail: String {
-        if status == .loading { return "读取中…" }
-        if status == .unavailable { return "暂不可用" }
+        if status == .loading { return L10n.text("读取中…") }
+        if status == .unavailable { return L10n.text("暂不可用") }
         if status == .live, let detailOverride { return detailOverride }
-        guard let window = displayedWindow else { return "未提供此窗口" }
-        guard let reset = window.resetsAt else { return "未提供重置时间" }
+        guard let window = displayedWindow else { return L10n.text("未提供此窗口") }
+        guard let reset = window.resetsAt else { return L10n.text("未提供重置时间") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = includesDate ? "M月d日 HH:mm" : "HH:mm"
-        return "重置 \(formatter.string(from: reset))"
+        formatter.locale = L10n.current.locale
+        formatter.setLocalizedDateFormatFromTemplate(includesDate ? "MMMdHHmm" : "HHmm")
+        return L10n.text("重置 ") + formatter.string(from: reset)
     }
 
 }
 
 
 struct WriteBackSettingsView: View {
+    @Environment(\.locale) private var locale
     @Binding var apiURL: String
     @Binding var bearer: String
     @Binding var codexKeyID: String
@@ -1230,58 +1233,58 @@ struct WriteBackSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("回写 Token 余量", systemImage: "arrow.up.doc")
+            Label(L10n.text("回写 Token 余量", locale: locale), systemImage: "arrow.up.doc")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
             HStack {
-                Text("自动回写")
+                Text(L10n.text("自动回写"))
                 Spacer()
                 Toggle("", isOn: $enabled)
                     .labelsHidden()
                     .disabled(paused)
-                    .accessibilityLabel("自动回写")
+                    .accessibilityLabel(L10n.text("自动回写"))
             }
             HStack {
-                Text("回写间隔")
+                Text(L10n.text("回写间隔"))
                 Spacer()
                 Stepper(value: $intervalMinutes, in: 1...60) {
-                    Text("每 \(intervalMinutes) 分钟")
+                    Text(L10n.format("每 %d 分钟", intervalMinutes))
                         .monospacedDigit()
                 }
                 .fixedSize()
             }
-            LabeledWriteBackField(label: "API 地址", prompt: "https://example.com/api/usage", text: $apiURL)
-            LabeledWriteBackField(label: "Bearer", prompt: "不含或包含 Bearer 前缀均可", text: $bearer, secure: true)
+            LabeledWriteBackField(label: L10n.text("API 地址"), prompt: "https://example.com/api/usage", text: $apiURL)
+            LabeledWriteBackField(label: "Bearer", prompt: L10n.text("不含或包含 Bearer 前缀均可"), text: $bearer, secure: true)
             LabeledWriteBackField(label: "Codex Key ID", prompt: "codex-…", text: $codexKeyID)
             HStack(spacing: 8) {
                 Button(action: onSave) {
-                    Label("保存配置", systemImage: "checkmark")
+                    Label(L10n.text("保存配置"), systemImage: "checkmark")
                 }
                 .buttonStyle(.borderedProminent)
                 Button(action: onVerify) {
-                    Label("验证连接", systemImage: "checkmark.shield")
+                    Label(L10n.text("验证连接"), systemImage: "checkmark.shield")
                 }
                 .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            Text("验证会发送一次当前额度，不会计入失败次数。")
+            Text(L10n.text("验证会发送一次当前额度，不会计入失败次数。"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Divider()
             HStack {
-                Text("最近成功回写")
+                Text(L10n.text("最近成功回写"))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(lastSuccessAt?.formatted(date: .omitted, time: .shortened) ?? "暂无记录")
+                Text(lastSuccessAt?.formatted(date: .omitted, time: .shortened) ?? L10n.text("暂无记录"))
                     .monospacedDigit()
             }
             if paused {
-                Label("连续失败 \(consecutiveFailures) 次，自动回写已暂停。请修正配置后保存。", systemImage: "exclamationmark.triangle.fill")
+                Label(L10n.format("连续失败 %d 次，自动回写已暂停。请修正配置后保存。", consecutiveFailures), systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             } else if consecutiveFailures > 0 {
-                Text("最近连续失败 \(consecutiveFailures) 次")
+                Text(L10n.format("最近连续失败 %d 次", consecutiveFailures))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1348,13 +1351,14 @@ struct QuotaProgressBar: View {
             }
         }
         .frame(height: 6)
-        .accessibilityLabel("剩余额度")
+        .accessibilityLabel(L10n.text("剩余额度"))
         .accessibilityValue("\(Int(clampedValue.rounded()))%，\(status)")
     }
 }
 
 
 struct EditQuotaView: View {
+    @Environment(\.locale) private var locale
     @Binding var window: QuotaWindow
     let label: String
 
@@ -1362,17 +1366,17 @@ struct EditQuotaView: View {
         GroupBox(label) {
             Grid(alignment: .leading, verticalSpacing: 7) {
                 GridRow {
-                    Text("总额度")
+                    Text(L10n.text("总额度", locale: locale))
                     TextField("100", value: $window.budget, format: .number)
                         .textFieldStyle(.roundedBorder)
                 }
                 GridRow {
-                    Text("已使用")
+                    Text(L10n.text("已使用"))
                     TextField("0", value: $window.used, format: .number)
                         .textFieldStyle(.roundedBorder)
                 }
                 GridRow {
-                    Text("重置时间")
+                    Text(L10n.text("重置时间"))
                     DatePicker("", selection: $window.resetsAt, displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
                 }
@@ -1400,12 +1404,11 @@ struct NamedRateLimits: Sendable {
 
     var summary: String {
         func describe(_ window: LiveRateLimitWindow?) -> String {
-            guard let window else { return "未提供" }
-            let reset = Date(timeIntervalSince1970: TimeInterval(window.resetsAt))
-                .formatted(.dateTime.month().day().hour().minute())
-            return "\(100 - window.usedPercent)% 剩余，重置 \(reset)"
+            guard let window else { return L10n.text("未提供") }
+            let reset = L10n.date(Date(timeIntervalSince1970: TimeInterval(window.resetsAt)))
+            return L10n.format("%@%% 剩余，重置 %@", String(100 - window.usedPercent), reset)
         }
-        return "5 小时：\(describe(fiveHour))\n每周：\(describe(weekly))"
+        return L10n.format("5 小时：%@\n每周：%@", describe(fiveHour), describe(weekly))
     }
 }
 
@@ -1486,7 +1489,7 @@ struct CodexWhamUsage: Decodable {
         case "team", "business": return "Business（企业工作区）"
         case "enterprise": return "Enterprise（企业）"
         case "edu": return "Edu（教育）"
-        case .some(let value) where !value.isEmpty: return "未知套餐（\(planType!)）"
+        case .some(let value) where !value.isEmpty: return L10n.format("未知套餐（%@）", planType!)
         default: return "套餐未识别"
         }
     }
@@ -1501,7 +1504,7 @@ struct CodexWhamUsage: Decodable {
                 let labels = [limit.limitName, limit.normalModelSlug, limit.meteredFeature]
                     .compactMap { $0 }.filter { !$0.isEmpty }
                 return NamedRateLimits(
-                    name: labels.isEmpty ? "未命名附加额度 \(index + 1)" : labels.joined(separator: " · "),
+                    name: labels.isEmpty ? L10n.format("未命名附加额度 %d", index + 1) : labels.joined(separator: " · "),
                     fiveHour: limit.rateLimit?.window(seconds: 18000),
                     weekly: limit.rateLimit?.window(seconds: 604800)
                 )
