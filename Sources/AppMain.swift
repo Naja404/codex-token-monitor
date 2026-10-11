@@ -28,6 +28,11 @@ enum MonitorLauncher {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
+    private lazy var menuFlip = MenuBarFlipAnimator(motionAllowed: { [weak self] in
+        self?.providers.appearance.motion != .off && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }) { [weak self] image in
+        self?.statusItem?.button?.image = image
+    }
     private let model = UsageModel()
     private lazy var providers = ProviderStore(codex: model)
     private lazy var monitorController = MonitorHostingController(rootView: MonitorView(
@@ -90,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // On a secondary display, AppKit passes the status-bar button that was
         // actually clicked. Using statusItem.button can still refer to another display.
         guard let button = (sender as? NSStatusBarButton) ?? statusItem?.button else { return }
+        menuFlip.finish()
         recordTouchBarState(.beforePopover)
         if popover.isShown {
             popover.performClose(sender)
@@ -218,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        menuFlip.finish()
         touchBarDiagnosticObservers.forEach { NotificationCenter.default.removeObserver($0) }
         touchBarDiagnosticObservers.removeAll()
         providers.stop()
@@ -256,9 +263,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         monitorController.updateQuotaTouchBar()
         let (fiveHour, weekly) = providers.menuLines
         statusItem?.button?.title = ""
-        statusItem?.button?.image = MenuBarUsageImage.make(firstLine: fiveHour, secondLine: weekly)
+        menuFlip.update(first: fiveHour, second: weekly, revision: providers.menuRotationRevision,
+                        animate: providers.menuRotationEnabled && !popover.isShown,
+                        retainWidth: providers.menuRotationEnabled || popover.isShown)
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)"
+        statusItem?.button?.setAccessibilityLabel("\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)")
     }
 }
 
@@ -739,7 +749,7 @@ final class TouchBarRainbowCatView: NSView {
 }
 
 enum MenuBarUsageImage {
-    static func make(firstLine: String, secondLine: String) -> NSImage {
+    static func make(firstLine: String, secondLine: String, minimumWidth: CGFloat = 0) -> NSImage {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .medium),
             .foregroundColor: NSColor.black
@@ -748,11 +758,13 @@ enum MenuBarUsageImage {
             (firstLine as NSString).size(withAttributes: attributes).width,
             (secondLine as NSString).size(withAttributes: attributes).width
         )
-        let image = NSImage(size: NSSize(width: ceil(widestLine) + 6, height: 22))
+        let naturalWidth = ceil(widestLine) + 6
+        let image = NSImage(size: NSSize(width: max(naturalWidth, minimumWidth), height: 22))
         image.lockFocus()
         // Explicit coordinates leave safe top/bottom padding; AppKit's multiline baseline can clip the first line.
-        firstLine.draw(at: NSPoint(x: 3, y: 10), withAttributes: attributes)
-        secondLine.draw(at: NSPoint(x: 3, y: 1), withAttributes: attributes)
+        let x = 3 + (image.size.width - naturalWidth) / 2
+        firstLine.draw(at: NSPoint(x: x, y: 10), withAttributes: attributes)
+        secondLine.draw(at: NSPoint(x: x, y: 1), withAttributes: attributes)
 
         image.unlockFocus()
         image.isTemplate = true

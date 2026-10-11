@@ -6,7 +6,7 @@
 
 <p align="center">在 macOS 菜单栏或 Windows 系统托盘中查看 Codex 订阅额度。</p>
 
-**v1.4.0 · macOS 多供应商监控**：Codex + Antigravity + Claude Code + Warp + TeamoRouter，默认简介 / 可切换明细，Touch Bar 跟随菜单栏数据源，支持三套外观主题。Windows 包保持原有 Codex 托盘功能，不包含本次 macOS 新功能。详见 [中英文版本说明](docs/releases/v1.4.0.md)。
+**v1.4.1 · 菜单栏翻牌动效**：自动轮播额度组时新增机场信息牌式翻转，保留系统单色和透明背景，支持关闭动效及系统“减少动态效果”。继续支持 Codex + Antigravity + Claude Code + Warp + TeamoRouter、多供应商简介 / 明细、三套主题及 Touch Bar 小猫。Windows 包保持原有 Codex 托盘功能，本次仅同步版本号。详见 [中英文版本说明](docs/releases/v1.4.1.md)。
 
 <p align="center">
   <img src="docs/images/providers-walkthrough.gif" width="360" alt="多供应商菜单数据、简介与明细、主题切换演示；原生视图渲染，测试示例数据">
@@ -132,6 +132,16 @@
 
 轮播仅切换已读取的数据，不增加接口请求。只有一个额度组时保持显示；没有开启服务时显示“未启用”。额度弹窗打开期间暂停轮播，关闭后等待一个间隔再继续，避免切换内容影响弹窗对齐。概览始终可滚动查看全部已开启项。
 
+#### 菜单栏翻牌（macOS v1.4.1）
+
+开启自动轮播后，切换额度组时播放约 **0.32 秒**的上下半片翻牌，两行略微错开，类似机场航班信息牌。保留系统单色与透明背景；普通额度刷新、手动切换不播放。轮播期间保留已显示内容所需的最大宽度，避免动画中挤动相邻图标；点击时立即结束动画，弹窗沿用原有定位逻辑。关闭轮播并收起弹窗后恢复紧凑宽度。
+
+在“供应商设置 → 外观”关闭动效，或开启 macOS“减少动态效果”，均改为直接切换。动画结束后停止绘制定时器，不增加接口请求。
+
+![菜单栏自动轮播翻牌，示例数据，文字放大两倍](docs/images/menu-bar-flip.gif)
+
+此 GIF 使用实际菜单栏绘制代码和虚构示例数据生成，文字放大两倍便于观察，并非真机录屏；展示 5 秒轮播间隔。
+
 Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期和时间使用系统时区。每个供应商记录独立的最近成功时间；缺少窗口或读取失败时显示 `—`，不会用 0% 或 100% 代替未知值。
 
 以下预览由原生 SwiftUI 界面渲染，**使用测试示例数据，并非真实账号截图**；概览下半部分可滚动。
@@ -168,10 +178,10 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.0 下载 | 使用方式 |
+| 平台 | v1.4.1 下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.0/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.0/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.1/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.1/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 

@@ -63,6 +63,7 @@ final class ProviderStore: ObservableObject {
     @Published private(set) var menuRotationEnabled: Bool
     @Published private(set) var menuRotationInterval: Int
     private var lastMenuRotation = ProcessInfo.processInfo.systemUptime
+    private(set) var menuRotationRevision: UInt = 0
     @Published private(set) var cliPath: String
     @Published private(set) var installation: CLIInstallation?
     @Published private(set) var detectionError: ProviderReadError?
@@ -283,6 +284,7 @@ final class ProviderStore: ObservableObject {
         let sources = availableMenuSources
         let index = sources.firstIndex(of: displayedMenuSource) ?? 0
         displayedMenuSource = sources[(index + 1) % sources.count]
+        menuRotationRevision &+= 1
         lastMenuRotation = now
         onChange?()
     }
