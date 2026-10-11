@@ -4,7 +4,8 @@ import SwiftUI
 import Testing
 @testable import CodexTokenMonitor
 
-@Test @MainActor func settingsCLIFieldCanBecomeFirstResponder() throws {
+@Test(arguments: [MonitorTheme.native, .liquidGlass])
+@MainActor func settingsCLIFieldCanBecomeFirstResponder(theme: MonitorTheme) throws {
     _ = NSApplication.shared
     let name = "provider-focus-\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: name))
@@ -12,6 +13,7 @@ import Testing
     defaults.set("/test/missing-agy", forKey: "antigravityCLIPath")
     let model = UsageModel(defaults: defaults)
     let store = ProviderStore(codex: model, defaults: defaults)
+    store.appearance.theme = theme
     defer { store.stop() }
     let host = NSHostingView(rootView: MonitorSettingsView(model: model, store: store, expandedProviders: [.antigravity]))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 600),
@@ -71,6 +73,11 @@ import Testing
     #expect(store.antigravityGroups.count == 2)
     #expect(store.teamoSnapshot != nil)
     store.setMenuRotationEnabled(true)
+    // L10n.current reads standard defaults; fixtures otherwise use an isolated suite.
+    // This rendering section is synchronous, and always restores the original value.
+    let originalLanguage = UserDefaults.standard.object(forKey: "monitorLanguage")
+    defer { UserDefaults.standard.set(originalLanguage, forKey: "monitorLanguage") }
+    UserDefaults.standard.set(AppLanguage.simplifiedChinese.rawValue, forKey: "monitorLanguage")
     for (label, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
         store.beginPopover()
         try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}).environment(\.colorScheme, scheme),
@@ -99,7 +106,20 @@ import Testing
             try capture(MonitorView(model: model, store: store, onQuit: {}, onSettings: {}),
                         size: .init(width: 360, height: 540), url: directory.appendingPathComponent("theme-\(theme.rawValue)-\(mode.rawValue)-details.png"))
             try capture(MonitorSettingsView(model: model, store: store, initialSection: .appearance),
-                        size: .init(width: 740, height: 600), url: directory.appendingPathComponent("appearance-\(theme.rawValue)-\(mode.rawValue).png"))
+                        size: .init(width: 740, height: 800), url: directory.appendingPathComponent("appearance-\(theme.rawValue)-\(mode.rawValue).png"))
+            if theme == .liquidGlass {
+                store.setLanguage(.english)
+                UserDefaults.standard.set(AppLanguage.english.rawValue, forKey: "monitorLanguage")
+                try capture(MonitorSettingsView(model: model, store: store, initialSection: .appearance),
+                            size: .init(width: 740, height: 800), url: directory.appendingPathComponent("glass-settings-english-\(mode.rawValue).png"))
+                store.setLanguage(.simplifiedChinese)
+                UserDefaults.standard.set(AppLanguage.simplifiedChinese.rawValue, forKey: "monitorLanguage")
+                try capture(MonitorPanel(model: model, store: store, onQuit: {}, onSettings: {}, viewportHeight: 540)
+                    .environment(\.monitorStyle, MonitorStyle(theme: .liquidGlass, dark: mode == .dark,
+                                                             solid: true, highContrast: true))
+                    .environment(\.colorScheme, mode == .dark ? .dark : .light),
+                            size: .init(width: 360, height: 540), url: directory.appendingPathComponent("glass-accessible-\(mode.rawValue).png"))
+            }
         }
     }
     store.appearance.theme = .aurora
@@ -114,7 +134,8 @@ import Testing
     let gifURL = directory.appendingPathComponent("providers-walkthrough.gif")
     let frames: [(MonitorTheme, Bool, MenuQuotaSource)] = [
         (.native, false, .codex), (.native, false, .teamo),
-        (.aurora, true, .teamo), (.graphite, false, .warp)
+        (.aurora, true, .teamo), (.graphite, false, .warp),
+        (.liquidGlass, false, .codex), (.liquidGlass, true, .codex)
     ]
     let destination = try #require(CGImageDestinationCreateWithURL(
         gifURL as CFURL, "com.compuserve.gif" as CFString, frames.count, nil))

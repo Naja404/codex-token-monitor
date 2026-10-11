@@ -24,6 +24,7 @@ struct MonitorView: View {
 }
 
 struct MonitorPanel: View {
+    @Environment(\.monitorStyle) private var style
     @ObservedObject var model: UsageModel
     @ObservedObject var store: ProviderStore
     let onQuit: () -> Void
@@ -52,8 +53,13 @@ struct MonitorPanel: View {
                 Text(L10n.text("按服务查看额度")).font(.caption).monitorSecondary()
                 Spacer()
                 Button { store.toggleAllProviderDetails() } label: {
-                    Label(store.allProviderDetailsExpanded ? L10n.text("全部收起") : L10n.text("全部展开"),
-                          systemImage: store.allProviderDetailsExpanded ? "chevron.up" : "chevron.down")
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.down")
+                            .rotationEffect(.degrees(store.allProviderDetailsExpanded ? -180 : 0))
+                            .animation(style.disclosureAnimation(expanded: store.allProviderDetailsExpanded), value: store.allProviderDetailsExpanded)
+                            .accessibilityHidden(true)
+                        Text(store.allProviderDetailsExpanded ? L10n.text("全部收起") : L10n.text("全部展开"))
+                    }
                 }.buttonStyle(.bordered).controlSize(.small)
                     .disabled(store.enabledProviders.isEmpty)
             }.padding(.horizontal, 14).padding(.bottom, 10)

@@ -88,7 +88,7 @@ struct ProviderSummaryView: View {
     private func card<Content: View>(_ brand: ProviderBrand, loading: Bool, error: String?, manual: Bool = false, successAt: Date?,
                                      @ViewBuilder content: () -> Content) -> some View {
         let provider = MonitorProvider(rawValue: brand.rawValue)!
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
                 DisclosureButton(title: brand.title, expanded: store.expandedProviders.contains(provider)) {
                     store.toggleProviderDetails(provider)
@@ -104,10 +104,12 @@ struct ProviderSummaryView: View {
                         .accessibilityLabel(error)
                 }
             }
-            content()
-            if store.expandedProviders.contains(provider) {
-                Divider().padding(.vertical, 4)
-                ProviderDetailView(model: model, store: store, provider: provider)
+            VStack(alignment: .leading, spacing: 6) { content() }.padding(.top, 6)
+            DisclosureContent(expanded: store.expandedProviders.contains(provider)) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Divider().padding(.vertical, 4)
+                    ProviderDetailView(model: model, store: store, provider: provider)
+                }.padding(.top, 6)
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 9)

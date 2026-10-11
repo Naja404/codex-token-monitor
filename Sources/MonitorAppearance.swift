@@ -3,13 +3,13 @@ import Combine
 import SwiftUI
 
 enum MonitorTheme: String, CaseIterable, Identifiable {
-    case native, aurora, graphite
+    case native, aurora, graphite, liquidGlass
     var id: String { rawValue }
     var title: String {
-        switch self { case .native: L10n.text("原生 · 清透"); case .aurora: L10n.text("极光 · 微光"); case .graphite: L10n.text("深空 · 石墨") }
+        switch self { case .native: L10n.text("原生 · 清透"); case .aurora: L10n.text("极光 · 微光"); case .graphite: L10n.text("深空 · 石墨"); case .liquidGlass: L10n.text("液态 · 玻璃") }
     }
     var subtitle: String {
-        switch self { case .native: L10n.text("干净、轻盈、熟悉"); case .aurora: L10n.text("薄雾柔光，安静悬浮"); case .graphite: L10n.text("精细线条，冷静有序") }
+        switch self { case .native: L10n.text("干净、轻盈、熟悉"); case .aurora: L10n.text("薄雾柔光，安静悬浮"); case .graphite: L10n.text("精细线条，冷静有序"); case .liquidGlass: L10n.text("通透材质，柔和折光") }
     }
 }
 
@@ -76,6 +76,11 @@ struct ThemePalette {
             card = rgb(dark ? 0x202B33 : 0xF8FAFC)
             accent = rgb(dark ? 0x80CCD8 : 0x24647C)
             glow = accent
+        case .liquidGlass:
+            background = rgb(dark ? 0x0E1C2C : 0xE3EDF7)
+            card = rgb(dark ? 0x233345 : 0xF8FBFF)
+            accent = rgb(dark ? 0xA8D5ED : 0x305D89)
+            glow = rgb(dark ? 0xA9ACDF : 0xB8C8EB)
         }
     }
 }
@@ -87,7 +92,12 @@ struct MonitorStyle {
     var highContrast = false
     var motionEnabled = false
     var palette: ThemePalette { ThemePalette(theme: theme, dark: dark) }
+    var usesGlassMaterial: Bool { theme == .liquidGlass && !solid && !highContrast }
     var animation: Animation? { motionEnabled ? .easeInOut(duration: 0.22) : nil }
+    func disclosureAnimation(expanded: Bool) -> Animation? {
+        // A bounded curve avoids a spring's long settling tail across tall cards.
+        motionEnabled ? .timingCurve(0.22, 0.8, 0.25, 1, duration: expanded ? 0.26 : 0.18) : nil
+    }
 }
 
 private struct MonitorStyleKey: EnvironmentKey { static let defaultValue = MonitorStyle() }
@@ -131,16 +141,24 @@ struct MonitorBackdrop: View {
     var body: some View {
         ZStack {
             Color(nsColor: style.palette.background)
-            if !style.solid {
+            if !style.solid && !style.highContrast {
                 if style.theme == .native {
                     Rectangle().fill(.regularMaterial).opacity(0.45)
                 } else {
                     GeometryReader { proxy in
-                        RadialGradient(colors: [Color(nsColor: style.palette.accent).opacity(style.dark ? 0.25 : 0.16), .clear],
+                        RadialGradient(colors: [Color(nsColor: style.palette.accent).opacity(style.usesGlassMaterial ? 0.38 : style.dark ? 0.25 : 0.16), .clear],
                                        center: .topTrailing, startRadius: 0, endRadius: proxy.size.width * 1.05)
-                        if style.theme == .aurora {
-                            RadialGradient(colors: [Color(nsColor: style.palette.glow).opacity(style.dark ? 0.16 : 0.2), .clear],
+                        if style.theme == .aurora || style.usesGlassMaterial {
+                            RadialGradient(colors: [Color(nsColor: style.palette.glow).opacity(style.usesGlassMaterial ? 0.36 : style.dark ? 0.16 : 0.2), .clear],
                                            center: .bottomLeading, startRadius: 0, endRadius: proxy.size.width * 0.9)
+                        }
+                        if style.usesGlassMaterial {
+                            LinearGradient(stops: [
+                                .init(color: .white.opacity(style.dark ? 0.12 : 0.5), location: 0),
+                                .init(color: .clear, location: 0.35),
+                                .init(color: Color(nsColor: style.palette.glow).opacity(0.2), location: 0.65),
+                                .init(color: .clear, location: 1)
+                            ], startPoint: .topLeading, endPoint: .bottomTrailing)
                         }
                     }
                     // One short reveal on activation; no timer or continuously moving background.
@@ -154,26 +172,59 @@ struct MonitorBackdrop: View {
 
 private struct MonitorSurface: ViewModifier {
     @Environment(\.monitorStyle) private var style
+    @State private var hovering = false
     let successAt: Date?
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: style.theme == .graphite ? 10 : 12)
+        let shape = RoundedRectangle(cornerRadius: style.theme == .liquidGlass ? 18 : style.theme == .graphite ? 10 : 12)
         content
-            .background(Color(nsColor: style.palette.card).opacity(style.solid ? 1 : 0.96), in: shape)
-            .overlay {
-                shape.strokeBorder(LinearGradient(
-                    colors: [Color(nsColor: style.palette.accent).opacity(style.highContrast ? 0.8 : 0.32),
-                             Color(nsColor: style.palette.primary).opacity(style.highContrast ? 0.5 : 0.08)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: style.highContrast ? 1.5 : 0.75)
-                    .allowsHitTesting(false)
-            }
-            .shadow(color: .black.opacity(style.theme == .native || style.solid ? 0 : style.dark ? 0.18 : 0.05), radius: 8, y: 3)
-            .phaseAnimator([0.0, 1.0, 0.0], trigger: successAt) { card, phase in
-                card.overlay {
-                    shape.strokeBorder(Color(nsColor: style.palette.accent), lineWidth: 1.25)
-                        .opacity(style.motionEnabled && successAt != nil ? phase * 0.6 : 0)
-                        .allowsHitTesting(false).accessibilityHidden(true)
+            .background {
+                if style.usesGlassMaterial {
+                    // macOS 14-compatible glass styling, not the macOS 26 glassEffect API.
+                    shape.fill(.thinMaterial)
+                    shape.fill(Color(nsColor: style.palette.card).opacity(style.dark ? 0.22 : 0.2))
+                    shape.fill(LinearGradient(stops: [
+                        .init(color: .white.opacity(style.dark ? 0.14 : 0.52), location: 0),
+                        .init(color: .white.opacity(0.02), location: 0.42),
+                        .init(color: Color(nsColor: style.palette.glow).opacity(style.dark ? 0.09 : 0.16), location: 1)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing))
+                } else {
+                    shape.fill(Color(nsColor: style.palette.card).opacity(style.solid || style.highContrast ? 1 : 0.96))
                 }
-            } animation: { _ in style.motionEnabled ? .easeOut(duration: 0.18) : nil }
+            }
+            .overlay {
+                if style.usesGlassMaterial {
+                    shape.strokeBorder(LinearGradient(stops: [
+                        .init(color: .white.opacity(style.dark ? 0.68 : 0.95), location: 0),
+                        .init(color: .white.opacity(0.12), location: 0.38),
+                        .init(color: Color(nsColor: style.palette.accent).opacity(style.dark ? 0.3 : 0.22), location: 0.68),
+                        .init(color: .white.opacity(style.dark ? 0.42 : 0.85), location: 1)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.2)
+                        .allowsHitTesting(false)
+                    Color.white.opacity(hovering ? 0.22 : 0.06)
+                        .animation(style.animation, value: hovering)
+                        .mask(shape.inset(by: 2).strokeBorder(lineWidth: 0.5))
+                        .allowsHitTesting(false)
+                } else {
+                    shape.strokeBorder(LinearGradient(
+                        colors: [Color(nsColor: style.palette.accent).opacity(style.highContrast ? 0.8 : 0.32),
+                                 Color(nsColor: style.palette.primary).opacity(style.highContrast ? 0.5 : 0.08)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: style.highContrast ? 1.5 : 0.75)
+                        .allowsHitTesting(false)
+                }
+            }
+            .shadow(color: .black.opacity(style.theme == .native || style.solid || style.highContrast ? 0 : style.dark ? 0.18 : 0.05),
+                    radius: style.usesGlassMaterial ? 14 : 8, y: style.usesGlassMaterial ? 6 : 3)
+            .onHover { inside in if style.usesGlassMaterial { hovering = inside } }
+            .overlay {
+                // Keep the border's geometry outside the pulse animation so it
+                // follows the card immediately during interrupted disclosures.
+                Color(nsColor: style.palette.accent)
+                    .phaseAnimator([0.0, 1.0, 0.0], trigger: successAt) { color, phase in
+                        color.opacity(style.motionEnabled && successAt != nil ? phase * 0.6 : 0)
+                    } animation: { _ in style.motionEnabled ? .easeOut(duration: 0.18) : nil }
+                    .mask(shape.strokeBorder(lineWidth: 1.25))
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
     }
 }
 
@@ -199,7 +250,7 @@ struct MonitorAppearanceSettings: View {
             Text(L10n.text("为额度选择一种氛围", locale: locale)).font(.headline)
             Text(L10n.text("只改变外观，不改变读取频率、额度颜色含义或供应商 Logo。"))
                 .font(.subheadline).monitorSecondary()
-            HStack(spacing: 10) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(MonitorTheme.allCases) { theme in
                     Button { appearance.theme = theme } label: {
                         VStack(alignment: .leading, spacing: 8) {
@@ -225,6 +276,10 @@ struct MonitorAppearanceSettings: View {
                 }
             }
             Text(appearance.theme.subtitle).font(.subheadline).monitorSecondary()
+            if appearance.theme == .liquidGlass {
+                Text(L10n.text("兼容 macOS 14 的玻璃风格，非新版系统 Liquid Glass API。"))
+                    .font(.caption).monitorSecondary().fixedSize(horizontal: false, vertical: true)
+            }
             VStack(alignment: .leading, spacing: 16) {
                 Picker(L10n.text("明暗"), selection: $appearance.mode) {
                     ForEach(MonitorColorMode.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -253,17 +308,18 @@ private struct ThemeChoiceButtonStyle: ButtonStyle {
 private struct ThemeSwatch: View {
     let theme: MonitorTheme
     let dark: Bool
+    @Environment(\.monitorStyle) private var style
     var body: some View {
         let palette = ThemePalette(theme: theme, dark: dark)
         ZStack {
-            LinearGradient(colors: [Color(nsColor: palette.background),
-                                    theme == .native ? Color(nsColor: palette.background) : Color(nsColor: palette.accent).opacity(0.35)],
-                           startPoint: .bottomLeading, endPoint: .topTrailing)
+            MonitorBackdrop()
             VStack(alignment: .leading, spacing: 8) {
                 HStack { Circle().fill(Color(nsColor: palette.accent)).frame(width: 8, height: 8); Capsule().fill(Color(nsColor: palette.secondary).opacity(0.5)).frame(width: 34, height: 4) }
                 Text("72%  /  38%").font(.system(size: 12, weight: .semibold, design: .monospaced)).foregroundStyle(Color(nsColor: palette.primary))
                 Capsule().fill(Color(nsColor: palette.accent)).frame(height: 3)
-            }.padding(10).background(Color(nsColor: palette.card), in: RoundedRectangle(cornerRadius: 7)).padding(10)
+            }.padding(10).monitorSurface().padding(10)
         }.clipShape(RoundedRectangle(cornerRadius: 7)).accessibilityHidden(true)
+            .environment(\.monitorStyle, MonitorStyle(theme: theme, dark: dark,
+                                                     solid: style.solid, highContrast: style.highContrast))
     }
 }

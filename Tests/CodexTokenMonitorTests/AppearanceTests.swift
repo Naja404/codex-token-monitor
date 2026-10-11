@@ -4,6 +4,26 @@ import SwiftUI
 import Testing
 @testable import CodexTokenMonitor
 
+@Test @MainActor func liquidGlassPersistsWithoutReplacingDefaultTheme() throws {
+    let name = "glass-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let appearance = MonitorAppearance(defaults: defaults)
+    #expect(appearance.theme == .native)
+    appearance.theme = .liquidGlass
+    #expect(MonitorAppearance(defaults: defaults).theme == .liquidGlass)
+    #expect(MonitorTheme.allCases.count == 4)
+    #expect(L10n.text("液态 · 玻璃", language: .english) == "Liquid · Glass")
+}
+
+@Test func liquidGlassRespectsTransparencyAndContrastSettings() {
+    #expect(MonitorStyle(theme: .liquidGlass).usesGlassMaterial)
+    #expect(!MonitorStyle(theme: .liquidGlass, solid: true).usesGlassMaterial)
+    #expect(!MonitorStyle(theme: .liquidGlass, highContrast: true).usesGlassMaterial)
+    #expect(!MonitorStyle(theme: .native).usesGlassMaterial)
+    #expect(MonitorStyle(theme: .liquidGlass, motionEnabled: false).animation == nil)
+}
+
 @Test @MainActor func appearanceDefaultsPersistAndRejectUnknownValues() throws {
     let name = "appearance-\(UUID())"
     let defaults = UserDefaults(suiteName: name)!

@@ -4,9 +4,13 @@
   <img src="Assets/AppIcon.png" width="128" alt="Codex Token Monitor 应用图标">
 </p>
 
-<p align="center">在 macOS 菜单栏或 Windows 系统托盘中查看 Codex 订阅额度。</p>
+<p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
-**v1.4.2 · 折叠概览与双语**：服务卡片默认折叠，支持全部展开 / 收起；新增中文简体 / English 即时切换、10 / 30 / 60 秒轮播快捷按钮及可折叠的连接设置。macOS 安装包已签名公证；Windows 保留原有 Codex 托盘功能，仅同步版本号。详见 [中英文版本说明](docs/releases/v1.4.2.md)。
+**v1.4.3 · 液态玻璃与顺滑折叠**：新增“液态 · 玻璃”主题，强化边缘反光与材质层次；卡片支持可中断的展开 / 收起过渡，修复刷新成功微光与连续折叠同时发生时的卡片重叠。Windows 保留原有 Codex 托盘功能，仅同步版本号。安装包验证状态及完整更新见 [中英文版本说明](docs/releases/v1.4.3.md)。
+
+已完成、待验证、下一阶段和暂缓范围统一记录在 [ROADMAP.md](ROADMAP.md)。v1.4.2 的折叠概览、中英文切换、轮播快捷项和可折叠连接设置继续保留。
+
+v1.4.3 adds a macOS 14-compatible Liquid · Glass theme and smoother, interruptible disclosure transitions, and fixes card overlap when refresh highlights coincide with rapid toggling. Windows remains Codex-only. See the [bilingual release notes](docs/releases/v1.4.3.md) and [roadmap](ROADMAP.md) for scope and verification status.
 
 <p align="center">
   <img src="docs/images/providers-walkthrough.gif" width="360" alt="多供应商菜单数据、折叠与展开、主题切换演示；原生视图渲染，测试示例数据">
@@ -14,29 +18,29 @@
 
 上方 GIF 由应用原生视图渲染，演示菜单栏双行数据、TeamoRouter 明细与主题切换，使用虚构示例值，不是真实账户录屏。Touch Bar 的各档动画见下方 GIF。
 
-### v1.4.2 更新
+### v1.4.3 更新
 
-- 弹窗不再切换“简介 / 明细”：每张服务卡默认折叠，点击箭头查看完整数据；支持全部展开 / 全部收起，每次重新打开弹窗恢复折叠。
-- “服务与账号”的连接配置可独立折叠；服务名称和监控开关始终可见，折叠不会清空未保存的输入。
-- 在 **供应商设置 → 菜单栏与显示 → 语言** 选择 **中文–简体 / English**，即时应用并自动保存。
-- 自动轮播新增 **10 秒 / 30 秒 / 60 秒**快捷按钮，仍支持自定义 **5–60 秒**；切换语言、折叠和选择轮播间隔都不会增加额度查询。
-- 退出按钮增加电源图标。Windows 不包含以上 macOS 界面优化。
+- 新增 **液态 · 玻璃**：半透明材质、边缘反光和更明确的层次；四套主题都支持浅色、深色及跟随系统，设置采用两列预览。
+- 展开约 **260ms**、收起约 **180ms**，高度和内容透明度同步过渡；连续点击可反向中断，不排队播放，也不清空未保存的配置输入。
+- 修复刷新成功高光与“全部展开 / 全部收起”同时发生时的卡片重叠：高光只改变透明度，描边始终限制在当前卡片轮廓内。
+- 保留默认折叠、中文–简体 / English、10 / 30 / 60 秒轮播快捷项及退出图标。无障碍设置优先，未知额度仍显示占位符。
+- README 更新玻璃主题及外观设置预览；图片与 GIF 使用虚构示例数据，不含真实账户信息。额度接口、查询频率、回写格式及 Touch Bar 小猫规则不变。
 
-v1.4.2 for macOS: per-provider expandable details, Expand/Collapse All, collapsible account settings, instant Simplified Chinese/English switching, 10/30/60-second rotation presets, and a Quit icon. The macOS download is Developer ID signed and notarized. Provider polling and reporting payloads are unchanged.
+v1.4.3 for macOS: a fourth glass-inspired theme, interruptible 260ms/180ms disclosure transitions, and a fix for overlapping cards during concurrent refresh highlights. Accessibility preferences take precedence; provider polling and reporting payloads are unchanged. See [v1.4.2 notes](docs/releases/v1.4.2.md) for the earlier language and disclosure features.
 
 ## 功能
 
 - macOS 菜单栏双行显示 5 小时 / 每周余量与重置时间；Windows 托盘数字显示余量，悬浮提示注明两个窗口。
 - 点击菜单栏或托盘图标查看账户额度、进度条、重置时间和附加模型额度。
-- Codex 每 30 秒自动刷新；macOS v1.4.0 Antigravity 约 60 秒、Claude Code / Warp / TeamoRouter 约 5 分钟，支持手动刷新并遵守限流冷却。
+- Codex 每 30 秒自动刷新；macOS Antigravity 约 60 秒、Claude Code / Warp / TeamoRouter 约 5 分钟，支持手动刷新并遵守限流冷却。
 - macOS 每次打开默认折叠，紧凑查看已开启的额度；点击每张卡片的箭头，或“全部展开”查看进度条、重置时间、来源和错误。离线品牌 Logo、系统深浅色与等宽数字方便扫读。
-- macOS 支持应用内 Touch Bar：显示两个账户窗口的余量、重置时间，并提供刷新按钮和额度联动彩虹猫（v1.3.0 新增）。
-- 可配置回写 API，将当前 5 小时与每周剩余额度发送到你的服务。
+- macOS 支持应用内 Touch Bar：跟随菜单栏当前供应商显示额度或金额，并提供刷新按钮和额度联动彩虹猫。
+- 可配置回写 API，将当前 Codex 5 小时与每周剩余额度发送到你的服务；其他供应商不参与回写。
 - 自动回写默认关闭，可设置 1–60 分钟间隔；连续失败 10 次会自动暂停并提示。
 - 直接使用本机 Codex 登录凭据请求 OpenAI 额度，不经过第三方 Adapter。
 - macOS 使用系统菜单栏模板颜色；Windows 使用独立设置窗口与当前用户加密的 Bearer 存储。
 
-## 多供应商监控（macOS v1.4.0）
+## 多供应商监控（macOS）
 
 同一概览中按供应商展示额度，不合并不同服务、不同模型组的百分比。Codex / Antigravity / Claude 为订阅剩余比例，不是精确 token 数；Warp 按接口返回的 Credits 和周期上限展示；TeamoRouter 展示账户美元余额和当前 Key 的消费、Token 用量，不转换成百分比。
 
@@ -116,6 +120,8 @@ v1.4.2 for macOS: per-provider expandable details, Expand/Collapse All, collapsi
 
 每次打开弹窗默认折叠；每张服务卡保留余量概览，点击箭头展开完整错误、重置时间、数据来源和成功时间。顶部可“全部展开 / 全部收起”。“服务与账号”里的连接配置也可折叠，监控开关始终可见，折叠不丢失输入。折叠和展开不会触发接口请求。Logo 离线打包，来源见 [品牌资源说明](docs/provider-logo-sources.md)；TeamoRouter 使用原生路由符号与名称，不冒用 Claude 的 Logo。
 
+v1.4.3 的展开 / 收起会同步调整卡片高度与内容透明度，连续点击可直接反向；刷新成功微光不再带动整张卡片的位置与尺寸。关闭界面动效或开启系统“减少动态效果”时立即切换。
+
 在 **供应商设置 → 菜单栏与显示 → 语言** 中选择 **中文–简体 / English**，立即生效并自动保存。轮播支持 **10 / 30 / 60 秒**快捷选择，也可用步进器设定 **5–60 秒**；改变间隔不会增加接口请求。
 
 <p>
@@ -125,7 +131,7 @@ v1.4.2 for macOS: per-provider expandable details, Expand/Collapse All, collapsi
 
 <img src="docs/images/menu-language-settings.png" width="740" alt="英文设置：语言即时切换、10/30/60 秒轮播快捷按钮">
 
-### 外观主题（macOS v1.4.0）
+### 外观主题（macOS）
 
 在 **供应商设置 → 外观** 中选择主题，点击即时应用并自动保存，无需重启：
 
@@ -134,8 +140,11 @@ v1.4.2 for macOS: per-provider expandable details, Expand/Collapse All, collapsi
 | 原生 · 清透（默认） | 系统感材质、干净留白、轻量边框 |
 | 极光 · 微光 | 蓝紫与青色柔光、柔和阴影、边缘高光 |
 | 深空 · 石墨 | 石墨背景、冰蓝点缀、精细分隔 |
+| 液态 · 玻璃 | 半透明原生材质、清晰反光轮廓、柔和层次与悬停微光 |
 
-三套主题均提供浅色和深色，可选跟随系统；弹窗、折叠 / 展开卡片及设置使用统一样式。菜单栏仍为系统单色，品牌 Logo、额度警告颜色、读取频率与 Touch Bar 小猫规则不变。
+v1.4.3 提供四套主题，均支持浅色、深色和跟随系统，弹窗与设置共用样式；主题选择为两列卡片布局。默认仍为“原生 · 清透”，不会自动改动已有选择。菜单栏仍为系统单色，品牌 Logo、额度警告颜色、读取频率与 Touch Bar 小猫规则不变。
+
+“液态 · 玻璃”使用 macOS 14 可用的 SwiftUI Material、渐变高光与阴影实现玻璃风格，兼容 M1 + macOS 14.8；不是新版系统的 [Apple Liquid Glass API](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)，不包含其真实折射或形态融合效果。开启“减少透明度”或“增强对比度”后使用实色卡片，关闭玻璃反光和阴影；减少动态效果仍优先于应用动效设置。无持续粒子、鼠标追踪光源或后台绘制定时器。
 
 动效可选“轻柔 / 关闭”。轻柔模式提供切换淡入淡出、数值与进度过渡，以及**真实刷新成功**时的短暂卡片高光；不使用持续粒子或闪烁动画。关闭弹窗或离开应用后不播放弹窗动效。系统“减少动态效果”优先关闭动画；“减少透明度 / 增强对比度”使用实色背景，增强对比度时加强边界。
 
@@ -147,7 +156,14 @@ v1.4.2 for macOS: per-provider expandable details, Expand/Collapse All, collapsi
   <img src="docs/images/theme-graphite-dark.png" width="240" alt="深空石墨主题，示例数据">
 </p>
 
-<img src="docs/images/appearance-settings.png" width="740" alt="外观设置：三套主题预览、明暗切换、轻柔或关闭动效">
+以下为 v1.4.3 液态玻璃主题与四主题设置，均为原生视图渲染的虚构示例数据，不是真实账号截图：
+
+<p>
+  <img src="docs/images/theme-liquidGlass-light.png" width="360" alt="v1.4.3 液态玻璃浅色概览，示例数据">
+  <img src="docs/images/theme-liquidGlass-dark.png" width="360" alt="v1.4.3 液态玻璃深色概览，示例数据">
+</p>
+
+<img src="docs/images/appearance-settings.png" width="740" alt="v1.4.3 外观设置：四套主题的两列预览、明暗切换和动效设置">
 
 轮播仅切换已读取的数据，不增加接口请求。只有一个额度组时保持显示；没有开启服务时显示“未启用”。额度弹窗打开期间暂停轮播，关闭后等待一个间隔再继续，避免切换内容影响弹窗对齐。概览始终可滚动查看全部已开启项。
 
@@ -189,18 +205,18 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 - Antigravity 查询在后台运行，单次最长 30 秒、输出最多 512 KiB；失败后逐步放缓到最多 15 分钟。未安装、路径/版本不符、登录/权限错误或误识别为对话时暂停自动查询，修复后手动验证。
 - 仅执行 `--version` 和 `/usage`，不发送模型任务；使用独立临时工作目录。登录与凭据由官方 CLI 管理，本应用不复制 Antigravity 凭据，不显示原始 CLI 错误输出。
 - 安装检测只证明找到 CLI，不代表登录有效。应用不自动安装 CLI、不自动发起登录、不自动启用新服务。
-- **回写仍仅关联 Codex**；Antigravity、Claude Code、Warp 数据不会进入现有回写接口。关闭 Codex 会停止后续自动回写，已经发出的请求无法撤回。
+- **回写仍仅关联 Codex**；Antigravity、Claude Code、Warp、TeamoRouter 数据不会进入现有回写接口。关闭 Codex 会停止后续自动回写，已经发出的请求无法撤回。
 - **Touch Bar 跟随菜单栏当前额度组**，手动切换和轮播均同步进度、重置时间及小猫状态，刷新按钮只刷新所选供应商。窗口缺失、读取中或失败不会回退成其他供应商的额度。
-- Windows 本轮不变；其他供应商、多账号、余额指标和历史趋势尚未接入。开发范围见 [阶段 A 规格](docs/multi-provider-spec.md)。
+- macOS 已接入五家供应商，包含 TeamoRouter 余额 / 消费与 Warp Credits；不支持任意代理、多账号或历史趋势。Windows 仍为 Codex 托盘功能。当前范围和验收缺口见 [路线图](ROADMAP.md)；[阶段 A 规格](docs/multi-provider-spec.md) 是历史记录，不是最新功能清单。
 
 ## 安装
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.2 下载 | 使用方式 |
+| 平台 | v1.4.3 下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.2/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.2/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.3/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.3/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
@@ -216,7 +232,7 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 3. 点击图标查看详情，失焦或按 Escape 收起；右键提供刷新、回写设置与退出。
 4. 托盘数字优先显示账户 5 小时余量，缺失时显示周余量；悬浮提示注明两者。
 
-Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放、DPAPI 配置恢复仍需实机验收。上方截图为 macOS v1.4.2 界面；Windows 外观不同，本轮不包含多供应商功能。
+Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放、DPAPI 配置恢复仍需实机验收。上方截图为 macOS 界面；Windows 外观不同，不包含多供应商、玻璃主题或本次折叠动效。
 
 ### Touch Bar（macOS v1.3.0+）
 
@@ -266,7 +282,7 @@ Windows 首版已完成数据逻辑检查和编译；托盘交互、多屏缩放
 
 跑动采用 12 帧循环：慢走时四足错开落地，小跑时对角腿配合；脚掌沿固定地面后蹬，膝肘弯曲后抬脚前收，头部和耳朵轻微跟随，配合摆尾、全身起伏与流动彩虹。帧循环思路参考 [klange/nyancat](https://github.com/klange/nyancat)；使用自绘像素图形，未引入该项目图片、音频或源代码。AppKit 定时重绘缓存帧；熟睡状态每轮 3.6 秒轻微呼吸，Zzz 缓慢上漂、淡出，不运行步态动画。
 
-使用 Apple 官方 AppKit `NSTouchBar` 接口，显式提供原生控件；新版源码在弹窗和设置窗口之间复用同一 Touch Bar，获得焦点时恢复显示。切换到其他应用后由系统切换内容，不在后台常驻，也不修改系统控制条。若系统设置为只显示“展开的控制条”或功能键，请在“系统设置 → 键盘 → Touch Bar 设置”中选择“App 控制”。没有 Touch Bar 的 Mac 继续使用菜单栏，不受影响。
+使用 Apple 官方 AppKit `NSTouchBar` 接口，显式提供原生控件；弹窗和设置窗口之间复用同一 Touch Bar，获得焦点时恢复显示。切换到其他应用后由系统切换内容，不在后台常驻，也不修改系统控制条。若系统设置为只显示“展开的控制条”或功能键，请在“系统设置 → 键盘 → Touch Bar 设置”中选择“App 控制”。没有 Touch Bar 的 Mac 继续使用菜单栏，不受影响。
 
 Touch Bar 功能自 v1.3.0 起提供，v1.3.1 更新了步态，也可从源码构建。原生 Touch Bar 已在 M1 + macOS 14.8 上确认能显示；最新跑动效果仍需实机体验。显示、额度联动和动画启停逻辑可通过 `swift test` 验证。
 
@@ -276,24 +292,24 @@ Touch Bar 功能自 v1.3.0 起提供，v1.3.1 更新了步态，也可从源码�
 | --- | --- | --- |
 | 硬件 | Apple Silicon Mac | Intel / AMD x64 PC |
 | 系统 | macOS 14（Sonoma）或更高版本 | Windows 10/11 |
-| 登录凭据 | `~/.codex/auth.json`；新版源码支持 `CODEX_HOME`，Antigravity 使用 CLI 登录 | `%USERPROFILE%\.codex\auth.json`，支持 `CODEX_HOME` |
+| 登录凭据 | `~/.codex/auth.json`，支持 `CODEX_HOME`；Antigravity 使用 CLI 登录 | `%USERPROFILE%\.codex\auth.json`，支持 `CODEX_HOME` |
 | 使用发布包 | 不需要开发工具 | 不需要开发工具或另装 .NET |
 | 从源码构建 | Swift 6 / Xcode Command Line Tools | .NET 10 SDK |
-| 网络 | 能够访问已开启供应商的服务（OpenAI / ChatGPT、Antigravity）及自行配置的回写服务 | OpenAI / ChatGPT 及自行配置的回写服务 |
+| 网络 | 能够访问已开启供应商的服务（OpenAI / ChatGPT、Antigravity、Anthropic、Warp、TeamoRouter）及自行配置的回写服务 | OpenAI / ChatGPT 及自行配置的回写服务 |
 
-## Windows 版（新增）
+## Windows 版
 
-新增 Windows 10/11 x64 托盘应用，支持套餐识别、额度刷新、附加模型额度与定时回写。免安装 ZIP 自带 .NET 运行时。使用方式、构建命令和实机验收项见 [Windows 说明](windows/README.md)。Windows GUI 仍需实机验证。
+Windows 10/11 x64 托盘应用支持套餐识别、额度刷新、附加模型额度与定时回写。免安装 ZIP 自带 .NET 运行时。使用方式、构建命令和实机验收项见 [Windows 说明](windows/README.md)。Windows GUI 仍需实机验证。
 
 ## 数据与隐私
 
-应用读取本机 Codex `auth.json` 内保存的 ChatGPT 登录凭据，并请求 OpenAI 的 `https://chatgpt.com/backend-api/wham/usage` 获取当前账号额度。读取时不要求 Codex 窗口保持开启，但凭据必须有效。Windows 不会自动读取 WSL、其他设备或仅存于凭据库中的登录信息；HTTP 401 时请重新登录 Codex。
+Codex 数据源读取本机 `auth.json` 内保存的 ChatGPT 登录凭据，并请求 OpenAI 的 `https://chatgpt.com/backend-api/wham/usage` 获取当前账号额度。读取时不要求 Codex 窗口保持开启，但凭据必须有效。macOS 的其他数据源分别通过其专用 API 或 CLI 读取，详见上方接入说明。Windows 不会自动读取 WSL、其他设备或仅存于凭据库中的登录信息；HTTP 401 时请重新登录 Codex。
 
 - 不读取或上传你的提示词、代码或聊天内容。
 - 不写入或修改 Codex 凭据。
-- 不使用第三方 Adapter 或中转服务。
+- Codex 额度读取不经过第三方 Adapter 或中转服务；只有用户主动配置的 TeamoRouter 数据源会查询 TeamoRouter 自身的余额与用量接口。
 - 未登录、凭据失效或接口不可用时，界面显示占位符。
-- Windows 配置保存在 `%LOCALAPPDATA%\CodexTokenMonitor\settings.json`，Bearer 使用 DPAPI 当前用户加密；macOS 配置使用本机 UserDefaults。
+- Windows 配置保存在 `%LOCALAPPDATA%\CodexTokenMonitor\settings.json`，Bearer 使用 DPAPI 当前用户加密。macOS 显示偏好保存在 UserDefaults，Warp / TeamoRouter 密钥保存在本应用钥匙串项；**现有 Codex 回写 Bearer 仍保存在 UserDefaults，并非钥匙串加密存储**，迁移计划见路线图。
 
 ### 套餐与额度识别
 
@@ -310,7 +326,7 @@ Touch Bar 功能自 v1.3.0 起提供，v1.3.1 更新了步态，也可从源码�
 
 ### macOS
 
-需要 macOS 14+ 与 Xcode Command Line Tools。
+需要 macOS 14+ 与提供 Swift 6.0 或更高版本的 Xcode Command Line Tools / Xcode。可先运行 `swift --version` 检查工具链；新主题不提高最低系统要求。
 
 ```bash
 git clone https://github.com/Naja404/codex-token-monitor.git
@@ -348,15 +364,15 @@ dotnet run --project windows/App -c Release
 
 ```bash
 # 示例：使用尚未发布的新版本号
-git tag v1.4.3
-git push origin v1.4.3
+git tag v1.4.4
+git push origin v1.4.4
 ```
 
 ## 已知限制
 
-- 本工具显示 ChatGPT/Codex 订阅额度，不是 OpenAI API key 的 API 限流数据。
-- 此额度接口未作为公开稳定 SDK 契约发布；OpenAI 或 Codex 的内部实现变化可能影响读取结果。
-- v1.4.2 Release 的 macOS 安装包使用 **Developer ID 签名 + Apple 公证**，已附加公证票据并通过 Gatekeeper 验证。系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
+- Codex 数据源显示 ChatGPT/Codex 订阅额度，不是 OpenAI API Key 的余额或 API 限流数据。macOS 其他数据源保留各自的百分比、Credits、金额和 Token 用量单位。
+- Codex、Claude Code 和 Warp 使用的额度接口不保证公开稳定；服务端变更可能影响读取。Warp 真实 Key、各套餐账号和实机验收状态见 [路线图](ROADMAP.md#待验证)。
+- v1.4.3 macOS 附件已完成 **Developer ID 签名 + Apple 公证**、附加票据及解压后的 Gatekeeper 验证；完整检查结果见 [版本说明](docs/releases/v1.4.3.md)。系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
 - GitHub Actions 先创建草稿 Release；ad-hoc macOS 包仅作为 Actions artifact 保存，不附到 Release。正式 macOS 附件在本机签名、公证、附加票据后上传并发布，CI 不会覆盖已公证附件。证书私钥与公证凭据未上传 GitHub。
 - Windows 首版暂不提供手动额度编辑、MSI 安装器或原生 ARM64 包；托盘交互和多屏定位仍需实机验收。
 

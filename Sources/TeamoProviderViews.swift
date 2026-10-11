@@ -111,7 +111,7 @@ struct TeamoQuotaCard: View {
     var body: some View {
         let detailed = detailed || store.expandedProviders.contains(.teamo)
         let quota = store.isRefreshingTeamo ? nil : store.teamoSnapshot
-        VStack(alignment: .leading, spacing: detailed ? 10 : 6) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 DisclosureButton(title: "TeamoRouter", expanded: detailed) { store.toggleProviderDetails(.teamo) }
                 Label("TeamoRouter", systemImage: "arrow.triangle.branch").font(.subheadline.weight(.semibold))
@@ -127,22 +127,24 @@ struct TeamoQuotaCard: View {
                 Text(quota?.balanceText ?? "—").font(.system(size: 17, weight: .semibold, design: .rounded)).monospacedDigit()
                 Spacer(minLength: 4)
                 Text(L10n.text("今日 ") + (quota?.costText ?? "—")).font(.caption).monospacedDigit()
-            }
-            if detailed {
-                Text(L10n.text("Claude Code API · 按量计费")).font(.caption).monitorSecondary()
-                if let error = store.teamoError { Text(error.localizedDescription).font(.caption) }
-                LabeledContent(L10n.text("今日已用 Token"), value: quota?.totalTokens.formatted() ?? "—").font(.caption)
-                LabeledContent(L10n.text("今日请求数"), value: quota?.requests.formatted() ?? "—").font(.caption)
-                Text(L10n.text("余额属于账户；今日消费与用量属于当前 Key，包含所有模型。"))
-                    .font(.caption2).monitorSecondary()
-                if let quota {
-                    Text(L10n.format("统计 %@ – %@ · 本机时区", L10n.date(Date(timeIntervalSince1970: Double(quota.start))), Date(timeIntervalSince1970: Double(quota.end)).formatted(date: .omitted, time: .shortened)))
+            }.padding(.top, 6)
+            DisclosureContent(expanded: detailed) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(L10n.text("Claude Code API · 按量计费")).font(.caption).monitorSecondary()
+                    if let error = store.teamoError { Text(error.localizedDescription).font(.caption) }
+                    LabeledContent(L10n.text("今日已用 Token"), value: quota?.totalTokens.formatted() ?? "—").font(.caption)
+                    LabeledContent(L10n.text("今日请求数"), value: quota?.requests.formatted() ?? "—").font(.caption)
+                    Text(L10n.text("余额属于账户；今日消费与用量属于当前 Key，包含所有模型。"))
                         .font(.caption2).monitorSecondary()
-                }
-                Text(L10n.text("最近成功 ") + (store.teamoLastSuccessAt?.formatted(.dateTime.month().day().hour().minute()) ?? "—"))
-                    .font(.caption2).monitorSecondary()
+                    if let quota {
+                        Text(L10n.format("统计 %@ – %@ · 本机时区", L10n.date(Date(timeIntervalSince1970: Double(quota.start))), Date(timeIntervalSince1970: Double(quota.end)).formatted(date: .omitted, time: .shortened)))
+                            .font(.caption2).monitorSecondary()
+                    }
+                    Text(L10n.text("最近成功 ") + (store.teamoLastSuccessAt?.formatted(.dateTime.month().day().hour().minute()) ?? "—"))
+                        .font(.caption2).monitorSecondary()
+                }.padding(.top, 10)
             }
-        }.padding(detailed ? 14 : 12).frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
             .monitorSurface(successAt: store.teamoLastSuccessAt)
     }
 }
