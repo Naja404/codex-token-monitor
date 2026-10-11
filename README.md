@@ -335,7 +335,8 @@ git push origin v1.3.2
 
 - 本工具显示 ChatGPT/Codex 订阅额度，不是 OpenAI API key 的 API 限流数据。
 - 此额度接口未作为公开稳定 SDK 契约发布；OpenAI 或 Codex 的内部实现变化可能影响读取结果。
-- macOS 使用 ad-hoc 签名，尚未经过 Apple 公证；Windows EXE 尚未进行代码签名。
+- v1.4.1 Release 的 macOS 附件已于 2026-10-11 更新为 **Developer ID 签名 + Apple 公证**，已附加公证票据并通过 Gatekeeper 验证。此前下载的 v1.4.1 包请重新下载；系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
+- 当前 GitHub Actions 构建产物仍使用 ad-hoc 签名；正式 macOS 附件需在本机完成签名、公证后替换，不能用重新运行 Actions 的产物覆盖已公证附件。证书私钥与公证凭据未上传 GitHub。
 - Windows 首版暂不提供手动额度编辑、MSI 安装器或原生 ARM64 包；托盘交互和多屏定位仍需实机验收。
 
 ## 回写 Token 余量
