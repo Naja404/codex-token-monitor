@@ -6,11 +6,22 @@
 
 <p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
-**v1.4.4 · 稳定刷新、DMG 安装与 Gemini 4 Argon**：刷新等待期间保留已有数值，菜单栏只在有效数据改变时重绘；新增 Gemini 4 Argon 独立额度和拖拽到 Applications 的 DMG 安装窗口。Windows 保留 Codex 托盘功能，仅同步版本号。
+**v1.4.5 · 修复 macOS 标准快捷键**：供应商设置支持 Cmd+V 粘贴、Cmd+C 拷贝、Cmd+X 剪切、Cmd+A 全选、Cmd+Z 撤销和 Cmd+Shift+Z 重做；Cmd+W 关闭当前设置窗口，菜单栏监控继续运行。关闭后可以再次打开设置。
 
-**本版为未公证的预发布版**：macOS App 使用 ad-hoc 签名，未使用 Developer ID、未经过 Apple 公证，首次打开可能被 Gatekeeper 拦截。v1.4.3 仍为已公证的稳定版。预发布附件与构建状态见 [v1.4.4 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.4)，完整范围见 [中英文说明](docs/releases/v1.4.4.md) 和 [路线图](ROADMAP.md)。
+**本版为未公证的预发布版**：macOS App 使用 ad-hoc 签名，未使用 Developer ID、未经过 Apple 公证，首次打开可能被 Gatekeeper 拦截。v1.4.3 仍为已公证的稳定版。下载见 [v1.4.5 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.5)，完整范围见 [中英文说明](docs/releases/v1.4.5.md) 和 [路线图](ROADMAP.md)。
 
-v1.4.4 keeps existing quota values visible during refresh, skips identical menu-bar frames, adds an independent Gemini 4 Argon pool, and introduces a drag-to-Applications DMG. **This prerelease is ad-hoc signed and not Apple-notarized.** v1.4.3 remains the notarized stable release.
+v1.4.5 restores standard macOS editing shortcuts in provider settings and Cmd+W to close the settings window while monitoring continues. Secure fields keep their native copy protection. **This prerelease is ad-hoc signed and not Apple-notarized.** v1.4.3 remains the notarized stable release.
+
+### macOS 快捷键
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 粘贴 / 拷贝 / 剪切 | Cmd+V / Cmd+C / Cmd+X |
+| 全选 / 撤销 / 重做 | Cmd+A / Cmd+Z / Cmd+Shift+Z |
+| 关闭当前窗口 / 最小化 | Cmd+W / Cmd+M |
+| 退出监控器 | Cmd+Q |
+
+无需额外开启系统选项。文本编辑作用于当前输入框；密钥输入框支持粘贴和全选，仍禁止复制或剪切密钥。关闭设置窗口不会退出菜单栏监控。菜单名称随应用的中英文设置切换。
 
 ### v1.4.4 更新
 
@@ -220,10 +231,10 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.4 预发布下载 | 使用方式 |
+| 平台 | v1.4.5 预发布下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.4/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.4/Codex-Token-Monitor-macOS-arm64.zip) | 未公证预发布；挂载 DMG，将 App 拖到 Applications |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.4/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.5/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.5/Codex-Token-Monitor-macOS-arm64.zip) | 未公证预发布；挂载 DMG，将 App 拖到 Applications |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.5/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
@@ -373,8 +384,8 @@ dotnet run --project windows/App -c Release
 
 ```bash
 # 示例：更新版本及对应说明后，使用尚未发布的新版本号
-git tag v1.4.5
-git push origin v1.4.5
+git tag v1.4.6
+git push origin v1.4.6
 ```
 
 经明确授权发布**未公证预发布版**时，在手动运行中填写 `release_tag` 并开启 `publish_prerelease`。只有两平台构建成功后才会上传三个安装包与 `SHA256SUMS.txt` 并发布为 Pre-release，不替换 Latest 稳定版；中英文版本说明必须明确标注 ad-hoc 签名和未公证限制。正式稳定版仍要求 Developer ID 签名、公证和票据。
@@ -384,7 +395,7 @@ git push origin v1.4.5
 - Codex 数据源显示 ChatGPT/Codex 订阅额度，不是 OpenAI API Key 的余额或 API 限流数据。macOS 其他数据源保留各自的百分比、Credits、金额和 Token 用量单位。
 - Codex、Claude Code 和 Warp 使用的额度接口不保证公开稳定；服务端变更可能影响读取。Warp 真实 Key、各套餐账号和实机验收状态见 [路线图](ROADMAP.md#待验证)。
 - v1.4.3 macOS 附件已完成 **Developer ID 签名 + Apple 公证**、附加票据及解压后的 Gatekeeper 验证；完整检查结果见 [版本说明](docs/releases/v1.4.3.md)。系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
-- v1.4.4 是经明确授权发布的未公证预发布版，macOS 为 ad-hoc 签名。默认流程仍先创建草稿，正式稳定版必须签名、公证后发布；预发布不替换 v1.4.3 的 Latest 标记。证书私钥与公证凭据未上传 GitHub。
+- v1.4.5 延续已授权的未公证预发布方式，macOS 为 ad-hoc 签名。默认流程仍先创建草稿，正式稳定版必须签名、公证后发布；预发布不替换 v1.4.3 的 Latest 标记。证书私钥与公证凭据未上传 GitHub。
 - Windows 首版暂不提供手动额度编辑、MSI 安装器或原生 ARM64 包；托盘交互和多屏定位仍需实机验收。
 
 ## 回写 Token 余量
