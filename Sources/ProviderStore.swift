@@ -2,24 +2,50 @@ import Combine
 import Foundation
 
 enum MenuQuotaSource: String, CaseIterable, Identifiable {
-    case codex, antigravityGemini, antigravityThirdParty, claude, warp, teamo
+    case codex, antigravityGemini, antigravityThirdParty, antigravityArgon, claude, warp, teamo
     var id: String { rawValue }
     var title: String {
         switch self {
         case .codex: "Codex"
         case .antigravityGemini: "Antigravity · Gemini"
         case .antigravityThirdParty: "Antigravity · Claude + GPT"
+        case .antigravityArgon: "Antigravity · Gemini 4 Argon"
         case .claude: "Claude Code"
         case .warp: "Warp"
         case .teamo: "TeamoRouter"
+        }
+    }
+
+    var antigravityGroupID: String? {
+        switch self {
+        case .antigravityGemini: "gemini"
+        case .antigravityThirdParty: "3p"
+        case .antigravityArgon: "gemini-argon"
+        default: nil
         }
     }
 }
 
 enum MonitorProvider: String, CaseIterable { case codex, antigravity, claude, warp, teamo }
 
+private enum MenuQuotaSnapshot: Equatable {
+    case metrics([QuotaMetric]), warp(WarpUsageSnapshot), teamo(TeamoUsageSnapshot)
+}
+
 @MainActor
 final class ProviderStore: ObservableObject {
+    // Keep successful menu data separate from live/error state used by the details and Touch Bar.
+    private var menuSnapshots: [MenuQuotaSource: MenuQuotaSnapshot] = [:]
+
+    private func cacheMenu(_ snapshot: MenuQuotaSnapshot, for source: MenuQuotaSource) {
+        if menuSnapshots[source] != snapshot { menuSnapshots[source] = snapshot }
+    }
+
+    private func clearAntigravityMenu() {
+        for source in MenuQuotaSource.allCases where source.antigravityGroupID != nil {
+            menuSnapshots[source] = nil
+        }
+    }
     @Published private(set) var teamoEnabled: Bool
     @Published private(set) var teamoSnapshot: TeamoUsageSnapshot?
     @Published private(set) var teamoError: TeamoReadError?
@@ -125,6 +151,8 @@ final class ProviderStore: ObservableObject {
             case .warp: warpEnabled
             case .teamo: teamoEnabled
             case .antigravityGemini, .antigravityThirdParty: antigravityEnabled
+            case .antigravityArgon:
+                antigravityEnabled && (menuSnapshots[.antigravityArgon] != nil || menuSource == .antigravityArgon)
             }
         }
     }
@@ -133,7 +161,7 @@ final class ProviderStore: ObservableObject {
         Set(availableMenuSources.map {
             switch $0 {
             case .codex: MonitorProvider.codex
-            case .antigravityGemini, .antigravityThirdParty: .antigravity
+            case .antigravityGemini, .antigravityThirdParty, .antigravityArgon: .antigravity
             case .claude: .claude
             case .warp: .warp
             case .teamo: .teamo
@@ -168,6 +196,7 @@ final class ProviderStore: ObservableObject {
         teamoEnabled = enabled
         defaults.set(enabled, forKey: "teamoEnabled")
         cancelTeamo()
+        menuSnapshots[.teamo] = nil
         teamoSnapshot = nil
         teamoLastSuccessAt = nil
         teamoError = coolingDown ? .rateLimited : nil
@@ -179,6 +208,7 @@ final class ProviderStore: ObservableObject {
 
     func teamoCredentialChanged() {
         cancelTeamo()
+        menuSnapshots[.teamo] = nil
         teamoSnapshot = nil
         teamoLastSuccessAt = nil
         if teamoError != .rateLimited { teamoError = nil; nextTeamoRefresh = .distantPast }
@@ -197,6 +227,7 @@ final class ProviderStore: ObservableObject {
                 let result = try await read(allowInteraction)
                 guard let self, id == self.teamoGeneration, !Task.isCancelled else { return }
                 self.teamoSnapshot = result
+                self.cacheMenu(.teamo(result), for: .teamo)
                 self.teamoLastSuccessAt = .now
                 self.teamoFailures = 0
                 self.nextTeamoRefresh = Date().addingTimeInterval(300)
@@ -229,6 +260,7 @@ final class ProviderStore: ObservableObject {
         warpEnabled = enabled
         defaults.set(enabled, forKey: "warpEnabled")
         cancelWarp()
+        menuSnapshots[.warp] = nil
         warpSnapshot = nil
         warpLastSuccessAt = nil
         warpError = coolingDown ? .rateLimited : nil
@@ -240,6 +272,7 @@ final class ProviderStore: ObservableObject {
 
     func warpCredentialChanged() {
         cancelWarp()
+        menuSnapshots[.warp] = nil
         warpSnapshot = nil
         warpLastSuccessAt = nil
         // Changing a key must not bypass a server rate-limit cooldown.
@@ -259,6 +292,7 @@ final class ProviderStore: ObservableObject {
                 let result = try await read(allowInteraction)
                 guard let self, id == self.warpGeneration, !Task.isCancelled else { return }
                 self.warpSnapshot = result
+                self.cacheMenu(.warp(result), for: .warp)
                 self.warpLastSuccessAt = .now
                 self.warpFailures = 0
                 self.nextWarpRefresh = Date().addingTimeInterval(300)
@@ -339,9 +373,11 @@ final class ProviderStore: ObservableObject {
     }
 
     func setAntigravityEnabled(_ enabled: Bool) {
+        guard antigravityEnabled != enabled else { return }
         antigravityEnabled = enabled
         defaults.set(enabled, forKey: "antigravityEnabled")
         cancelAntigravity()
+        clearAntigravityMenu()
         antigravityGroups = []
         antigravityError = nil
         failures = 0
@@ -352,6 +388,7 @@ final class ProviderStore: ObservableObject {
 
     func saveCLIPath(_ value: String) {
         cancelAntigravity()
+        clearAntigravityMenu()
         cliPath = value.trimmingCharacters(in: .whitespacesAndNewlines)
         defaults.set(cliPath, forKey: "antigravityCLIPath")
         installation = nil
@@ -418,6 +455,7 @@ final class ProviderStore: ObservableObject {
         claudeEnabled = enabled
         defaults.set(enabled, forKey: "claudeEnabled")
         cancelClaude()
+        menuSnapshots[.claude] = nil
         claudeMetrics = []
         claudeError = coolingDown ? .rateLimited : nil
         claudePlanName = "当前登录账号"
@@ -444,6 +482,7 @@ final class ProviderStore: ObservableObject {
                 let result = try await read(allowInteraction)
                 guard let self, id == self.claudeGeneration, !Task.isCancelled else { return }
                 self.claudeMetrics = result.metrics
+                if !result.metrics.isEmpty { self.cacheMenu(.metrics(result.metrics), for: .claude) }
                 self.claudePlanName = result.planName
                 self.claudeLastSuccessAt = .now
                 self.claudeFailures = 0
@@ -488,6 +527,11 @@ final class ProviderStore: ObservableObject {
                 guard let self, id == self.generation, !Task.isCancelled else { return }
                 self.installation = result.installation
                 self.antigravityGroups = result.groups
+                for source in MenuQuotaSource.allCases {
+                    if let group = result.groups.first(where: { $0.id == source.antigravityGroupID }) {
+                        self.cacheMenu(.metrics(group.metrics), for: source)
+                    }
+                }
                 self.antigravityLastSuccessAt = .now
                 self.failures = 0
                 self.nextAntigravityRefresh = Date().addingTimeInterval(60)
@@ -537,9 +581,9 @@ final class ProviderStore: ObservableObject {
         case .claude:
             if isRefreshingClaude { return .loading }
             return claudeError == nil && !claudeMetrics.isEmpty ? .live : .unavailable
-        case .antigravityGemini, .antigravityThirdParty:
+        case .antigravityGemini, .antigravityThirdParty, .antigravityArgon:
             if isRefreshingAntigravity { return .loading }
-            return antigravityError == nil && !antigravityGroups.isEmpty ? .live : .unavailable
+            return antigravityError == nil && antigravityGroups.contains(where: { $0.id == displayedMenuSource.antigravityGroupID }) ? .live : .unavailable
         }
     }
 
@@ -550,8 +594,8 @@ final class ProviderStore: ObservableObject {
         case .claude: return claudeMetrics
         case .warp: return warpSnapshot?.metric.map { [$0] } ?? []
         case .teamo: return [] // Money has no quota denominator; never invent a percentage.
-        case .antigravityGemini, .antigravityThirdParty:
-            return antigravityGroups.first(where: { $0.id == (displayedMenuSource == .antigravityGemini ? "gemini" : "3p") })?.metrics ?? []
+        case .antigravityGemini, .antigravityThirdParty, .antigravityArgon:
+            return antigravityGroups.first(where: { $0.id == displayedMenuSource.antigravityGroupID })?.metrics ?? []
         }
     }
 
@@ -560,6 +604,7 @@ final class ProviderStore: ObservableObject {
         case .codex: ""
         case .antigravityGemini: "G "
         case .antigravityThirdParty: "C+G "
+        case .antigravityArgon: "G4 "
         case .claude: "CL "
         case .warp: "W "
         case .teamo: "TR "
@@ -580,7 +625,7 @@ final class ProviderStore: ObservableObject {
         case .claude: refreshClaude()
         case .warp: refreshWarp()
         case .teamo: refreshTeamo()
-        case .antigravityGemini, .antigravityThirdParty: refreshAntigravity()
+        case .antigravityGemini, .antigravityThirdParty, .antigravityArgon: refreshAntigravity()
         }
     }
 
@@ -588,14 +633,21 @@ final class ProviderStore: ObservableObject {
         func localized(_ text: String) -> String { L10n.text(text, language: language) }
         guard !availableMenuSources.isEmpty else { return (localized("未启用"), localized("点击设置")) }
         if displayedMenuSource == .teamo {
-            guard displayedQuotaStatus == .live, let quota = teamoSnapshot else { return (localized("TR 余额 —"), localized("今日 —")) }
+            guard case .teamo(let quota) = menuSnapshots[.teamo] else { return (localized("TR 余额 —"), localized("今日 —")) }
             return ("TR " + quota.balanceText, localized("今日 ") + quota.costText)
         }
         if displayedMenuSource == .warp {
-            guard displayedQuotaStatus == .live, let quota = warpSnapshot else { return ("W Credits —", localized("重置 —")) }
+            guard case .warp(let quota) = menuSnapshots[.warp] else { return ("W Credits —", localized("重置 —")) }
             return ("W " + quota.balanceText, localized("重置 ") + (quota.resetsAt.map { L10n.date($0, includesTime: false, language: language) } ?? "—"))
         }
-        let metrics = displayedQuotaMetrics
+        let metrics: [QuotaMetric]
+        if displayedMenuSource == .codex {
+            metrics = codex.menuMetrics
+        } else if case .metrics(let cached) = menuSnapshots[displayedMenuSource] {
+            metrics = cached
+        } else {
+            metrics = []
+        }
         let prefix = displayedSourcePrefix
         func line(_ window: String, label: String) -> String {
             guard let metric = metrics.first(where: { $0.window == window }) else { return "\(label) — · —" }
@@ -603,6 +655,9 @@ final class ProviderStore: ObservableObject {
                 window == "weekly" ? L10n.date($0, includesTime: false, language: language) : $0.formatted(.dateTime.hour().minute().locale(language.locale))
             } ?? "—"
             return "\(label) \(Int(metric.remainingPercent.rounded()))% · \(reset)"
+        }
+        if displayedMenuSource == .antigravityArgon, !metrics.contains(where: { $0.window == "5h" }) {
+            return ("G4 Argon", prefix + line("weekly", label: localized("一周")))
         }
         return (prefix + line("5h", label: localized("5小时")), prefix + line("weekly", label: localized("一周")))
     }

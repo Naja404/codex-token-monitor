@@ -6,33 +6,38 @@
 
 <p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
-**v1.4.3 · 液态玻璃与顺滑折叠**：新增“液态 · 玻璃”主题，强化边缘反光与材质层次；卡片支持可中断的展开 / 收起过渡，修复刷新成功微光与连续折叠同时发生时的卡片重叠。Windows 保留原有 Codex 托盘功能，仅同步版本号。安装包验证状态及完整更新见 [中英文版本说明](docs/releases/v1.4.3.md)。
+**v1.4.4 · 稳定刷新、DMG 安装与 Gemini 4 Argon**：刷新等待期间保留已有数值，菜单栏只在有效数据改变时重绘；新增 Gemini 4 Argon 独立额度和拖拽到 Applications 的 DMG 安装窗口。Windows 保留 Codex 托盘功能，仅同步版本号。
 
-已完成、待验证、下一阶段和暂缓范围统一记录在 [ROADMAP.md](ROADMAP.md)。v1.4.2 的折叠概览、中英文切换、轮播快捷项和可折叠连接设置继续保留。
+**本版为未公证的预发布版**：macOS App 使用 ad-hoc 签名，未使用 Developer ID、未经过 Apple 公证，首次打开可能被 Gatekeeper 拦截。v1.4.3 仍为已公证的稳定版。预发布附件与构建状态见 [v1.4.4 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.4)，完整范围见 [中英文说明](docs/releases/v1.4.4.md) 和 [路线图](ROADMAP.md)。
 
-v1.4.3 adds a macOS 14-compatible Liquid · Glass theme and smoother, interruptible disclosure transitions, and fixes card overlap when refresh highlights coincide with rapid toggling. Windows remains Codex-only. See the [bilingual release notes](docs/releases/v1.4.3.md) and [roadmap](ROADMAP.md) for scope and verification status.
+v1.4.4 keeps existing quota values visible during refresh, skips identical menu-bar frames, adds an independent Gemini 4 Argon pool, and introduces a drag-to-Applications DMG. **This prerelease is ad-hoc signed and not Apple-notarized.** v1.4.3 remains the notarized stable release.
+
+### v1.4.4 更新
+
+- 固定时间查询保持原样；菜单栏等待结果或刷新失败时保留最近一次成功数据，相同内容不重绘。弹窗在查询中也保留已有数值；错误和最近成功时间继续在详情展示。
+- Gemini 4 Argon 与普通 Gemini、Claude + GPT 分组展示，支持固定菜单来源、自动轮播和 Touch Bar；只显示 CLI 实际返回的每周窗口，不推算 5 小时额度。
+- macOS 提供 DMG 拖拽安装窗口，并保留 ZIP；两平台安装包及 SHA-256 校验和由 Release 工作流生成。
+- 四套外观主题、可中断折叠、中英文设置、原有刷新频率和 Codex 回写格式继续保留。
 
 <p align="center">
-  <img src="docs/images/providers-walkthrough.gif" width="360" alt="多供应商菜单数据、折叠与展开、主题切换演示；原生视图渲染，测试示例数据">
+  <img src="docs/images/dmg-installer.png" width="720" alt="v1.4.4 实际 DMG 安装窗口：将 Codex Token Monitor 拖到 Applications">
 </p>
 
-上方 GIF 由应用原生视图渲染，演示菜单栏双行数据、TeamoRouter 明细与主题切换，使用虚构示例值，不是真实账户录屏。Touch Bar 的各档动画见下方 GIF。
+<p>
+  <img src="docs/images/argon-light.png" width="360" alt="Gemini、Claude + GPT 和 Gemini 4 Argon 独立额度，浅色原生视图，虚构示例数据">
+  <img src="docs/images/argon-dark.png" width="360" alt="Gemini 4 Argon 独立每周额度，深色原生视图，虚构示例数据">
+</p>
 
-### v1.4.3 更新
+<img src="docs/images/argon-refresh-stable.gif" width="360" alt="原生视图刷新演示：读取指示器出现时，原有三个额度组的数值仍保留；虚构示例数据">
 
-- 新增 **液态 · 玻璃**：半透明材质、边缘反光和更明确的层次；四套主题都支持浅色、深色及跟随系统，设置采用两列预览。
-- 展开约 **260ms**、收起约 **180ms**，高度和内容透明度同步过渡；连续点击可反向中断，不排队播放，也不清空未保存的配置输入。
-- 修复刷新成功高光与“全部展开 / 全部收起”同时发生时的卡片重叠：高光只改变透明度，描边始终限制在当前卡片轮廓内。
-- 保留默认折叠、中文–简体 / English、10 / 30 / 60 秒轮播快捷项及退出图标。无障碍设置优先，未知额度仍显示占位符。
-- README 更新玻璃主题及外观设置预览；图片与 GIF 使用虚构示例数据，不含真实账户信息。额度接口、查询频率、回写格式及 Touch Bar 小猫规则不变。
-
-v1.4.3 for macOS: a fourth glass-inspired theme, interruptible 260ms/180ms disclosure transitions, and a fix for overlapping cards during concurrent refresh highlights. Accessibility preferences take precedence; provider polling and reporting payloads are unchanged. See [v1.4.2 notes](docs/releases/v1.4.2.md) for the earlier language and disclosure features.
+安装器图片为本机实际 Finder 窗口截图；额度图片与刷新 GIF 由当前源码的原生视图生成，使用虚构数据，不包含真实账户或凭据。GIF 展示等待期间保留数值，不是真实账户录屏。打包方式见 [macOS 打包说明](docs/macos-packaging.md)。
 
 ## 功能
 
 - macOS 菜单栏双行显示 5 小时 / 每周余量与重置时间；Windows 托盘数字显示余量，悬浮提示注明两个窗口。
 - 点击菜单栏或托盘图标查看账户额度、进度条、重置时间和附加模型额度。
 - Codex 每 30 秒自动刷新；macOS Antigravity 约 60 秒、Claude Code / Warp / TeamoRouter 约 5 分钟，支持手动刷新并遵守限流冷却。
+- macOS 菜单栏保留最近一次成功数据，拿到有效新数据后才替换；显示内容相同不重绘。首次查询没有数据时显示占位符，失败原因和最近成功时间仍可在详情中查看；关闭监控或更换连接配置会清除相应菜单缓存。缓存只用于菜单显示，不参与 Codex 自动回写。
 - macOS 每次打开默认折叠，紧凑查看已开启的额度；点击每张卡片的箭头，或“全部展开”查看进度条、重置时间、来源和错误。离线品牌 Logo、系统深浅色与等宽数字方便扫读。
 - macOS 支持应用内 Touch Bar：跟随菜单栏当前供应商显示额度或金额，并提供刷新按钮和额度联动彩虹猫。
 - 可配置回写 API，将当前 Codex 5 小时与每周剩余额度发送到你的服务；其他供应商不参与回写。
@@ -59,6 +64,8 @@ v1.4.3 for macOS: a fourth glass-inspired theme, interruptible 260ms/180ms discl
 3. 在 Antigravity 卡片中检查检测结果。若没有找到 CLI，使用“选择文件…”或填写可执行文件绝对路径，再点“保存路径”。留空时扫描 PATH 和常见安装位置；从 Finder 启动的 App 不一定继承终端的 PATH。
 4. 点击“验证连接”。这是一次只读额度查询，不会自动打开监控开关；成功后按需开启 Antigravity。
 5. 在“菜单栏与显示”选择“固定显示”或“自动轮播”。可选已开启的 Codex、Antigravity · Gemini、Antigravity · Claude + GPT、Claude Code、Warp 或 TeamoRouter；自动轮播按顺序展示额度组，可设 **5–60 秒**间隔（默认 10 秒）。设置自动保存；关闭轮播后回到所选固定来源。
+
+当 CLI 返回 `Gemini 4 Argon` 独立额度组时，概览及固定显示 / 自动轮播会增加 **Antigravity · Gemini 4 Argon**（菜单前缀 `G4`）。`gemini-argon-wtu-weekly` 与普通 Gemini、Claude + GPT 分别展示；当前 CLI 只提供 Argon 每周额度，不推算 5 小时额度。没有独立 Argon 组的账号不会增加空的轮播项。已在本机 `agy 1.4.7` 确认响应结构。
 
 ### 开启 Claude Code（官方订阅）
 
@@ -213,15 +220,17 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.3 下载 | 使用方式 |
+| 平台 | v1.4.4 预发布下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [macOS arm64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.3/Codex-Token-Monitor-macOS-arm64.zip) | 解压，将 `.app` 拖入“应用程序” |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.3/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.4/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.4/Codex-Token-Monitor-macOS-arm64.zip) | 未公证预发布；挂载 DMG，将 App 拖到 Applications |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.4/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
-1. 下载 `Codex-Token-Monitor-macOS-arm64.zip`。
-2. 解压后，将 `Codex Token Monitor.app` 拖入“应用程序”。
+优先下载 DMG；需要解压方式时可使用兼容 ZIP。需要已公证稳定版时，请下载 [v1.4.3](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.3)。
+
+1. 下载 `Codex-Token-Monitor-macOS-arm64.dmg`，退出旧版 App。
+2. 双击挂载，将左侧 App 拖到右侧 Applications，完成后推出磁盘。ZIP 用户解压后将 App 拖入“应用程序”。
 3. 首次打开如被 Gatekeeper 拦截，请在 Finder 中右键应用，选择“打开”。
 4. 在此 Mac 上登录 Codex 后启动应用；菜单栏会显示真实额度。
 
@@ -358,22 +367,24 @@ dotnet run --project windows/App -c Release
 
 ## 发布新版本
 
-更新 `Packaging/Info.plist`、`windows/App/App.csproj`、Windows manifest 的版本及 `docs/releases/<标签>.md` 中英文说明后，推送尚未使用的 `v` 前缀标签。GitHub Actions 构建两平台 ZIP，创建**草稿 Release**并附上 Windows 包；macOS ad-hoc 包仅保存为 Actions artifact。
+更新 `Packaging/Info.plist`、`windows/App/App.csproj`、Windows manifest 的版本及 `docs/releases/<标签>.md` 中英文说明后，推送尚未使用的 `v` 前缀标签。GitHub Actions 构建 macOS DMG / ZIP 和 Windows ZIP，默认创建**草稿 Release**并附上 Windows 包；macOS ad-hoc 包默认仅保存为 Actions artifact。也可在 Actions 手动运行中填写匹配 App 版本的 `release_tag` 来准备草稿。
 
-在本机用 Developer ID Application 签名正式 macOS App（Hardened Runtime + 时间戳），用 `notarytool` 提交公证。获得 Accepted 后用 `stapler` 附加票据，再重新压缩 ZIP；解压后验证 `codesign`、`stapler validate`、`spctl` 和 `--verify-resources`。上传这个 ZIP 到草稿，确认两平台构建成功及附件齐全后才发布。不要上传私钥或公证密码，不要用 ad-hoc artifact 替换正式附件。
+在本机用 Developer ID Application 签名正式 macOS App（Hardened Runtime + 时间戳），用 `notarytool` 提交公证。获得 Accepted 后用 `stapler` 附加 App 票据，再重新压缩 ZIP，并用 `bash scripts/create-dmg.sh "dist/Codex Token Monitor.app" dist/Codex-Token-Monitor-macOS-arm64.dmg` 生成拖拽安装器。正式 DMG 还需签名、公证、附加 DMG 票据；完整流程见 [macOS 打包说明](docs/macos-packaging.md)。验证后上传正式 DMG / ZIP 到草稿，确认两平台构建成功及附件齐全后才发布。CI 同时保留 DMG / ZIP 作为 artifact，不自动公开 ad-hoc 包。
 
 ```bash
-# 示例：使用尚未发布的新版本号
-git tag v1.4.4
-git push origin v1.4.4
+# 示例：更新版本及对应说明后，使用尚未发布的新版本号
+git tag v1.4.5
+git push origin v1.4.5
 ```
+
+经明确授权发布**未公证预发布版**时，在手动运行中填写 `release_tag` 并开启 `publish_prerelease`。只有两平台构建成功后才会上传三个安装包与 `SHA256SUMS.txt` 并发布为 Pre-release，不替换 Latest 稳定版；中英文版本说明必须明确标注 ad-hoc 签名和未公证限制。正式稳定版仍要求 Developer ID 签名、公证和票据。
 
 ## 已知限制
 
 - Codex 数据源显示 ChatGPT/Codex 订阅额度，不是 OpenAI API Key 的余额或 API 限流数据。macOS 其他数据源保留各自的百分比、Credits、金额和 Token 用量单位。
 - Codex、Claude Code 和 Warp 使用的额度接口不保证公开稳定；服务端变更可能影响读取。Warp 真实 Key、各套餐账号和实机验收状态见 [路线图](ROADMAP.md#待验证)。
 - v1.4.3 macOS 附件已完成 **Developer ID 签名 + Apple 公证**、附加票据及解压后的 Gatekeeper 验证；完整检查结果见 [版本说明](docs/releases/v1.4.3.md)。系统仍可能显示首次从互联网下载的普通打开确认。Windows EXE 尚未进行代码签名。
-- GitHub Actions 先创建草稿 Release；ad-hoc macOS 包仅作为 Actions artifact 保存，不附到 Release。正式 macOS 附件在本机签名、公证、附加票据后上传并发布，CI 不会覆盖已公证附件。证书私钥与公证凭据未上传 GitHub。
+- v1.4.4 是经明确授权发布的未公证预发布版，macOS 为 ad-hoc 签名。默认流程仍先创建草稿，正式稳定版必须签名、公证后发布；预发布不替换 v1.4.3 的 Latest 标记。证书私钥与公证凭据未上传 GitHub。
 - Windows 首版暂不提供手动额度编辑、MSI 安装器或原生 ARM64 包；托盘交互和多屏定位仍需实机验收。
 
 ## 回写 Token 余量

@@ -2,5 +2,6 @@
 .build/
 dist/
 *.zip
+*.dmg
 windows/**/bin/
 windows/**/obj/

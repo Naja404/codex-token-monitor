@@ -3,6 +3,20 @@ import ImageIO
 import Testing
 @testable import CodexTokenMonitor
 
+@Test @MainActor func unchangedMenuDoesNotPublishAnotherFrameWithoutRotation() {
+    var frames = 0
+    let animator = MenuBarFlipAnimator { _ in frames += 1 }
+    animator.update(first: "5小时 80%", second: "一周 60%", revision: 0, animate: false, retainWidth: false)
+    let image = animator.image
+    for _ in 0..<60 {
+        animator.update(first: "5小时 80%", second: "一周 60%", revision: 0, animate: false, retainWidth: false)
+    }
+    #expect(frames == 1)
+    #expect(animator.image === image)
+    animator.update(first: "5小时 79%", second: "一周 60%", revision: 0, animate: false, retainWidth: false)
+    #expect(frames == 2)
+}
+
 @Test @MainActor func menuFlipOnlyStartsForAutomaticRotation() {
     let animator = MenuBarFlipAnimator(motionAllowed: { true }) { _ in }
     defer { animator.finish() }

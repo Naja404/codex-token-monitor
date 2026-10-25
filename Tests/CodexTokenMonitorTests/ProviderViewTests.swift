@@ -4,6 +4,53 @@ import SwiftUI
 import Testing
 @testable import CodexTokenMonitor
 
+@Test(.enabled(if: ProcessInfo.processInfo.environment["ARGON_PREVIEW_DIR"] != nil))
+@MainActor func rendersIndependentArgonQuota() async throws {
+    _ = NSApplication.shared
+    let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["ARGON_PREVIEW_DIR"]))
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let name = "argon-preview-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    defaults.set(false, forKey: "codexEnabled")
+    defaults.set(true, forKey: "antigravityEnabled")
+    let model = UsageModel(defaults: defaults)
+    let groups = try AntigravityReport.parse(antigravityFixture) +
+        AntigravityReport.parse(antigravityArgonFixture).filter { $0.id == "gemini-argon" }
+    let store = ProviderStore(codex: model, defaults: defaults, readAntigravity: { _ in
+        try await Task.sleep(for: .milliseconds(50))
+        return .init(installation: .init(path: "/preview/agy", version: "1.4.7"), groups: groups)
+    })
+    defer { store.stop() }
+    store.appearance.motion = .off
+    store.refreshAntigravity()
+    for _ in 0..<200 where store.isRefreshingAntigravity { try await Task.sleep(for: .milliseconds(5)) }
+    #expect(store.antigravityGroups.count == 3)
+    for (label, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
+        try capture(ProviderSummaryView(model: model, store: store).padding(12)
+            .modifier(MonitorThemeScope(appearance: store.appearance)).environment(\.colorScheme, scheme),
+                    size: .init(width: 360, height: 240), url: directory.appendingPathComponent("argon-\(label).png"))
+    }
+    store.setMenuSource(.antigravityArgon)
+    store.refreshAntigravity()
+    #expect(store.menuLines.second.contains("44%"))
+    try capture(ProviderSummaryView(model: model, store: store).padding(12)
+        .modifier(MonitorThemeScope(appearance: store.appearance)).environment(\.colorScheme, .light),
+                size: .init(width: 360, height: 240), url: directory.appendingPathComponent("argon-refreshing.png"))
+    let frames = ["argon-light.png", "argon-refreshing.png", "argon-light.png"]
+    let gif = try #require(CGImageDestinationCreateWithURL(
+        directory.appendingPathComponent("argon-refresh-stable.gif") as CFURL,
+        "com.compuserve.gif" as CFString, frames.count, nil))
+    CGImageDestinationSetProperties(gif, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+    for frame in frames {
+        let source = try #require(CGImageSourceCreateWithURL(directory.appendingPathComponent(frame) as CFURL, nil))
+        CGImageDestinationAddImage(gif, try #require(CGImageSourceCreateImageAtIndex(source, 0, nil)), [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 1.5]
+        ] as CFDictionary)
+    }
+    #expect(CGImageDestinationFinalize(gif))
+}
+
 @Test(arguments: [MonitorTheme.native, .liquidGlass])
 @MainActor func settingsCLIFieldCanBecomeFirstResponder(theme: MonitorTheme) throws {
     _ = NSApplication.shared

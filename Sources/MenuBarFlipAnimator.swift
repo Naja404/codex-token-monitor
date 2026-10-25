@@ -38,6 +38,7 @@ final class MenuBarFlipAnimator {
     private var target: NSImage?
     private var lines: (String, String)?
     private var revision: UInt?
+    private var retainedWidth = false
     private var timer: Timer?
     private let onFrame: (NSImage) -> Void
     private let motionAllowed: () -> Bool
@@ -54,8 +55,9 @@ final class MenuBarFlipAnimator {
         let rotated = self.revision != nil && self.revision != revision
         self.revision = revision
         let unchanged = previous?.0 == first && previous?.1 == second
-        if unchanged, retainWidth {
+        if unchanged, retainWidth || !retainedWidth {
             if !animate || !motionAllowed() { finish() }
+            retainedWidth = retainWidth
             return
         }
         finish()
@@ -63,6 +65,7 @@ final class MenuBarFlipAnimator {
         let next = MenuBarUsageImage.make(firstLine: first, secondLine: second, minimumWidth: width)
         target = next
         lines = (first, second)
+        retainedWidth = retainWidth
         guard rotated, !unchanged, animate, motionAllowed(), let previous else { publish(next); return }
         let old = MenuBarUsageImage.make(firstLine: previous.0, secondLine: previous.1, minimumWidth: next.size.width)
         source = old

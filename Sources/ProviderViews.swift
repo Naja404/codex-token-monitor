@@ -109,8 +109,7 @@ struct ProviderDetailView: View {
                     if model.rateLimitStatus == .manual {
                         Label(L10n.text("手动备选 · 不会回写"), systemImage: "pencil").font(.caption).monitorSecondary()
                     }
-                    QuotaMetricRows(metrics: model.rateLimitStatus == .live || model.rateLimitStatus == .manual
-                                    ? ProviderStore.codexMetrics(model) : [],
+                    QuotaMetricRows(metrics: ProviderStore.codexMetrics(model),
                                     loading: model.rateLimitStatus == .loading)
                     updatedAt(model.lastSuccessAt, source: "OpenAI · API")
                     if !model.additionalLimits.isEmpty {
@@ -145,7 +144,7 @@ struct ProviderDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(L10n.text(store.claudePlanName)).font(.caption).monitorSecondary()
                     if let error = store.claudeError { ProviderErrorLabel(error: error) }
-                    QuotaMetricRows(metrics: store.isRefreshingClaude ? [] : store.claudeMetrics,
+                    QuotaMetricRows(metrics: store.claudeMetrics,
                                     loading: store.isRefreshingClaude)
                     updatedAt(store.claudeLastSuccessAt, source: "Anthropic · OAuth API")
                     if store.claudeError == .rateLimited {
@@ -160,7 +159,7 @@ struct ProviderDetailView: View {
                         Label(error.localizedDescription, systemImage: "exclamationmark.triangle")
                             .font(.caption).fixedSize(horizontal: false, vertical: true)
                     }
-                    let quota = store.isRefreshingWarp ? nil : store.warpSnapshot
+                    let quota = store.warpSnapshot
                     Text(quota?.balanceText ?? "— Credits").font(.title3.weight(.semibold)).monospacedDigit()
                     if let metric = quota?.metric {
                         QuotaProgressBar(value: metric.remainingPercent,

@@ -113,7 +113,7 @@ private actor QuotaProbe {
     store.stop()
 }
 
-@Test @MainActor func failedRefreshClearsQuotaAndBacksOff() async throws {
+@Test @MainActor func failedRefreshKeepsMenuButClearsLiveQuotaAndBacksOff() async throws {
     let defaults = isolatedDefaults()
     defaults.set(false, forKey: "codexEnabled")
     let probe = QuotaProbe()
@@ -122,13 +122,16 @@ private actor QuotaProbe {
     store.setAntigravityEnabled(true)
     try await waitUntilSettled(store)
     let success = store.antigravityLastSuccessAt
+    let menu = store.menuLines
     store.refreshAntigravity()
+    #expect(store.menuLines == menu)
     try await waitUntilSettled(store)
     #expect(store.antigravityGroups.isEmpty)
     #expect(store.antigravityError == .network)
     #expect(store.antigravityLastSuccessAt == success)
     #expect(store.nextAntigravityRefresh.timeIntervalSinceNow > 100)
-    #expect(store.menuLines.first.contains("—"))
+    #expect(store.menuLines == menu)
+    #expect(store.displayedQuotaStatus == .unavailable)
     store.tick()
     #expect(await probe.calls == 2)
     store.stop()
