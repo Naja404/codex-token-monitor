@@ -48,26 +48,30 @@ struct ProviderSummaryView: View {
                 card(.codex, loading: model.rateLimitStatus == .loading,
                      error: model.readError?.localizedDescription, manual: model.rateLimitStatus == .manual,
                      successAt: model.lastSuccessAt) {
-                    metricLine(model.rateLimitStatus == .live || model.rateLimitStatus == .manual ? ProviderStore.codexMetrics(model) : [])
+                    metricLine(ProviderStore.codexMetrics(model))
                 }
             }
             if store.antigravityEnabled {
                 card(.antigravity, loading: store.isRefreshingAntigravity, error: store.antigravityError?.localizedDescription,
                      successAt: store.antigravityLastSuccessAt) {
-                    metricLine(store.isRefreshingAntigravity ? [] : store.antigravityGroups.first { $0.id == "gemini" }?.metrics ?? [], label: "Gemini")
-                    metricLine(store.isRefreshingAntigravity ? [] : store.antigravityGroups.first { $0.id == "3p" }?.metrics ?? [], label: "Claude + GPT")
+                    metricLine(store.antigravityGroups.first { $0.id == "gemini" }?.metrics ?? [], label: "Gemini")
+                    metricLine(store.antigravityGroups.first { $0.id == "3p" }?.metrics ?? [], label: "Claude + GPT")
+                    if let argon = store.antigravityGroups.first(where: { $0.id == "gemini-argon" }) {
+                        metricLine(argon.metrics, label: "Gemini 4 Argon",
+                                   windows: ["5h", "weekly"].filter { window in argon.metrics.contains { $0.window == window } })
+                    }
                 }
             }
             if store.claudeEnabled {
                 card(.claude, loading: store.isRefreshingClaude, error: store.claudeError?.localizedDescription,
                      successAt: store.claudeLastSuccessAt) {
-                    metricLine(store.isRefreshingClaude ? [] : store.claudeMetrics)
+                    metricLine(store.claudeMetrics)
                 }
             }
             if store.warpEnabled {
                 card(.warp, loading: store.isRefreshingWarp, error: store.warpError?.localizedDescription,
                      successAt: store.warpLastSuccessAt) {
-                    let quota = store.isRefreshingWarp ? nil : store.warpSnapshot
+                    let quota = store.warpSnapshot
                     HStack(alignment: .firstTextBaseline) {
                         Text(L10n.text("周期")).font(.caption).monitorSecondary()
                         Text(quota?.balanceText ?? "— Credits")
@@ -117,10 +121,10 @@ struct ProviderSummaryView: View {
         .monitorSurface(successAt: successAt)
     }
 
-    private func metricLine(_ metrics: [QuotaMetric], label: String? = nil) -> some View {
+    private func metricLine(_ metrics: [QuotaMetric], label: String? = nil, windows: [String] = ["5h", "weekly"]) -> some View {
         HStack(spacing: 8) {
             if let label { Text(label).font(.caption2).monitorSecondary().frame(width: 76, alignment: .leading) }
-            ForEach(["5h", "weekly"], id: \.self) { window in
+            ForEach(windows, id: \.self) { window in
                 let metric = metrics.first { $0.window == window }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(window == "5h" ? "5h" : "7d").font(.caption).monitorSecondary()

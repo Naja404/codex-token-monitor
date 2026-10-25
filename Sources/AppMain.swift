@@ -776,6 +776,8 @@ enum MenuBarUsageImage {
 
 @MainActor
 final class UsageModel: ObservableObject {
+    // Menu-only cache; live status and write-back still require a successful current read.
+    private(set) var menuMetrics: [QuotaMetric] = []
     @Published private(set) var fiveHour: QuotaWindow?
     @Published private(set) var weekly: QuotaWindow?
     @Published private(set) var planName = "套餐未识别"
@@ -841,6 +843,7 @@ final class UsageModel: ObservableObject {
         monitoringEnabled = enabled
         defaults.set(enabled, forKey: "codexEnabled")
         cancelRefresh()
+        menuMetrics = []
         fiveHour = nil
         weekly = nil
         additionalLimits = []
@@ -862,6 +865,7 @@ final class UsageModel: ObservableObject {
         cancelRefresh()
         self.fiveHour = fiveHour
         self.weekly = weekly
+        menuMetrics = ProviderStore.codexMetrics(self)
         additionalLimits = []
         readError = nil
         rateLimitStatus = .manual
@@ -974,6 +978,8 @@ final class UsageModel: ObservableObject {
     private func apply(_ rateLimits: LiveRateLimits) {
         fiveHour = rateLimits.primary.map { QuotaWindow.from(rateLimit: $0, name: "5 小时额度") }
         weekly = rateLimits.secondary.map { QuotaWindow.from(rateLimit: $0, name: "每周额度") }
+        let metrics = ProviderStore.codexMetrics(self)
+        if !metrics.isEmpty, menuMetrics != metrics { menuMetrics = metrics }
         planName = rateLimits.planName
         additionalLimits = rateLimits.additional
         rateLimitStatus = .live

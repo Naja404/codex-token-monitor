@@ -110,7 +110,7 @@ struct TeamoQuotaCard: View {
     var detailed = false
     var body: some View {
         let detailed = detailed || store.expandedProviders.contains(.teamo)
-        let quota = store.isRefreshingTeamo ? nil : store.teamoSnapshot
+        let quota = store.teamoSnapshot
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 DisclosureButton(title: "TeamoRouter", expanded: detailed) { store.toggleProviderDetails(.teamo) }

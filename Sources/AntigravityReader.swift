@@ -102,7 +102,9 @@ enum AntigravityReport {
                     return QuotaMetric(id: id, window: window, remainingPercent: fraction.doubleValue * 100, resetsAt: reset)
                 }
                 if !metrics.isEmpty {
-                    let id = metrics.contains(where: { $0.id.hasPrefix("gemini-") }) ? "gemini" :
+                    // Argon is a separate pool on Pro. Check it before the broader Gemini prefix.
+                    let id = metrics.contains(where: { $0.id.hasPrefix("gemini-argon-") }) ? "gemini-argon" :
+                        metrics.contains(where: { $0.id.hasPrefix("gemini-") }) ? "gemini" :
                         metrics.contains(where: { $0.id.hasPrefix("3p-") }) ? "3p" : "group-\(index)"
                     result.append(QuotaGroup(id: id, name: name, metrics: metrics))
                 }
