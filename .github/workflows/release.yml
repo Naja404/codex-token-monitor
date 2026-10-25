@@ -5,16 +5,47 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional v<app version> tag: build both platforms and prepare a draft release"
+        required: false
+        type: string
+        default: ""
+      publish_prerelease:
+        description: "Explicit opt-in: publish ad-hoc macOS packages as a clearly marked unnotarized prerelease"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  prerelease:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_prerelease && inputs.release_tag != ''
+    needs: [release, windows-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Codex-Token-Monitor-*
+          merge-multiple: true
+          path: dist
+      - name: Publish explicitly requested unnotarized prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          cd dist
+          sha256sum *.zip *.dmg > SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" *.zip *.dmg SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+
   windows:
     uses: ./.github/workflows/windows.yml
 
   windows-release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
     needs: [release, windows]
     runs-on: ubuntu-latest
     steps:
@@ -25,13 +56,33 @@ jobs:
       - name: Attach Windows ZIP to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/Codex-Token-Monitor-Windows-x64.zip --repo "$GITHUB_REPOSITORY"
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: gh release upload "$RELEASE_TAG" dist/Codex-Token-Monitor-Windows-x64.zip --repo "$GITHUB_REPOSITORY" --clobber
 
   release:
     runs-on: macos-15
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install DMG packaging dependencies
+        run: python -m pip install -r Packaging/requirements-dmg.txt
+
+      - name: Validate release tag against app version
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, plistlib
+          with open("Packaging/Info.plist", "rb") as source:
+              version = plistlib.load(source)["CFBundleShortVersionString"]
+          assert os.environ["RELEASE_TAG"] == f"v{version}", "Release tag must match the app version"
+          PY
 
       - name: Build release binary
         run: swift build -c release --arch arm64
@@ -52,20 +103,26 @@ jobs:
           "$APP/Contents/MacOS/CodexTokenMonitor" --verify-resources
           ditto -c -k --sequesterRsrc --keepParent "$APP" dist/Codex-Token-Monitor-macOS-arm64.zip
 
+      - name: Create drag-to-Applications installer
+        run: bash scripts/create-dmg.sh "dist/Codex Token Monitor.app" dist/Codex-Token-Monitor-macOS-arm64.dmg
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Codex-Token-Monitor-macOS-arm64
-          path: dist/Codex-Token-Monitor-macOS-arm64.zip
+          path: |
+            dist/Codex-Token-Monitor-macOS-arm64.zip
+            dist/Codex-Token-Monitor-macOS-arm64.dmg
 
-      # Only the locally Developer ID signed, notarized and stapled macOS ZIP
-      # belongs on a public release. Never upload the ad-hoc CI ZIP to Releases.
+      # Stable releases require Developer ID signing and notarization. Ad-hoc packages
+      # can be published only through the explicit unnotarized prerelease opt-in above.
       - name: Prepare draft release for notarized package
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
-              --title "$GITHUB_REF_NAME" --notes-file "docs/releases/$GITHUB_REF_NAME.md"
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
+              --title "$RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           fi
