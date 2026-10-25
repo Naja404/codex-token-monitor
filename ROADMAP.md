@@ -1,12 +1,19 @@
 # 产品路线图 / Roadmap
 
-更新：2026-10-11。目标是把 Codex Token Monitor 逐步发展为**多供应商 AI 额度监控工具**，优先保证数据可信、读取安全、查看直观。
+更新：2026-10-25。目标是把 Codex Token Monitor 逐步发展为**多供应商 AI 额度监控工具**，优先保证数据可信、读取安全、查看直观。
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。本文件按 **v1.4.3** 范围整理，包含玻璃主题与折叠动效修复；本版 macOS 安装包已完成签名、公证及解压验证，详见 [版本说明](docs/releases/v1.4.3.md)。实际发布状态与可下载附件以 [GitHub Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.3) 为准。
+“已实现”不等于“所有账号已实测”。当前增量为 **v1.4.4 未公证预发布版**，包含菜单刷新稳定性、独立 Argon 额度和 DMG 安装器；本版 macOS 使用 ad-hoc 签名。**v1.4.3** 继续作为已签名公证的稳定版。实际构建、附件及发布状态以 [v1.4.4 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.4) 为准。
 
 ## 已完成
+
+### v1.4.4 预发布增量
+
+- 菜单栏单独缓存最近一次成功数据；查询中与失败时保留显示，错误仍在详情中展示，关闭监控或更换连接配置时清除缓存。内容相同不重复重绘，固定时间查询与限流退避保持原样；菜单缓存不参与回写。
+- `Gemini 4 Argon` 的 `gemini-argon-wtu-weekly` 独立分组、概览、菜单选择与轮播。已通过本机 agy 1.4.7 的只读 `/usage` 确认字段，仅显示实际提供的每周窗口；普通 Gemini 与 Claude + GPT 独立保留。
+- 新增原生 DMG 打包脚本、中英文背景和 Applications 拖拽窗口，接入 macOS Actions artifact；正式签名公证流程见 [打包说明](docs/macos-packaging.md)。发布为明确标注未公证的 v1.4.4 Pre-release，v1.4.3 保留为稳定版。
+- 本轮验证：142 项 Swift 测试通过（包含 Argon 原生概览预览及真实 agy `/usage`：3 个额度组、5 个窗口）；arm64 Release 编译、资源验证、DMG 校验、挂载后 App 签名及实际 Finder 安装窗口检查通过。本版 macOS 安装包为 ad-hoc 签名、未经过 Developer ID 签名或 Apple 公证；两平台远程构建与附件状态以 v1.4.4 Release / Actions 为准。README 补充实际安装窗口、Argon 深浅色图片及原生刷新 GIF。
 
 ### 当前实现（v1.4.3）
 
@@ -34,7 +41,7 @@
 - [x] 更新玻璃主题截图与 6 帧演示 GIF；本地 134 项 Swift 测试、3 项额外原生折叠渲染测试及 arm64 Release 构建通过。
 - [x] 本版 macOS App 使用 Developer ID、Hardened Runtime 和安全时间戳签名；Apple 公证 Accepted、附加票据成功，最终 ZIP 解压后的签名、票据、Gatekeeper 和资源检查通过。
 
-发布流程：GitHub Actions 构建 Windows 包并附入草稿，macOS 正式附件使用上述已签名公证 ZIP；两平台 CI 与附件核对通过后才发布。CI 构建不替代下述真实账号和硬件验收。
+稳定版发布流程：GitHub Actions 构建 Windows 包并附入草稿，macOS 正式附件使用上述已签名公证 ZIP；两平台 CI 与附件核对通过后才发布。v1.4.4 按明确授权使用未公证 Pre-release 流程，保持 Latest 稳定版不变。CI 构建不替代下述真实账号和硬件验收。
 
 ## 待验证
 
