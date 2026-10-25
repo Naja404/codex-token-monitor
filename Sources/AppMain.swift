@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     ))
     private let popover = NSPopover()
     private var settingsWindow: NSWindow?
+    private var menuLanguage: AppLanguage?
     private var cancellable: Any?
     private var resignActiveObserver: NSObjectProtocol?
     private var globalClickMonitor: Any?
@@ -50,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        updateApplicationMenu()
         print("Codex Token Monitor 已启动，请查看 macOS 菜单栏。按 Ctrl-C 可退出。")
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -261,6 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func updateStatusTitle() {
+        updateApplicationMenu()
         settingsWindow?.title = L10n.text("Codex Token Monitor · 设置")
         monitorController.updateQuotaTouchBar()
         let (fiveHour, weekly) = providers.menuLines
@@ -271,6 +274,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)"
         statusItem?.button?.setAccessibilityLabel("\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)")
+    }
+
+    private func updateApplicationMenu() {
+        guard menuLanguage != providers.language else { return }
+        ApplicationMenu.install(language: providers.language)
+        menuLanguage = providers.language
     }
 }
 

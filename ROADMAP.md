@@ -4,9 +4,15 @@
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。当前增量为 **v1.4.4 未公证预发布版**，包含菜单刷新稳定性、独立 Argon 额度和 DMG 安装器；本版 macOS 使用 ad-hoc 签名。**v1.4.3** 继续作为已签名公证的稳定版。实际构建、附件及发布状态以 [v1.4.4 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.4) 为准。
+“已实现”不等于“所有账号已实测”。当前增量为 **v1.4.5 未公证预发布版**，修复标准 macOS 快捷键，并保留菜单刷新稳定性、独立 Argon 额度和 DMG 安装器；本版 macOS 使用 ad-hoc 签名。**v1.4.3** 继续作为已签名公证的稳定版。实际构建、附件及发布状态以 [v1.4.5 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.5) 为准。
 
 ## 已完成
+
+### v1.4.5 快捷键修复
+
+- 为 AppKit 常驻应用补齐标准应用、文件、编辑和窗口菜单；通过第一响应者分发 Cmd+V / C / X / A / Z / Shift+Z，Cmd+W 关闭当前窗口，Cmd+M 最小化，Cmd+Q 退出。菜单名称支持中英文切换。
+- 修复供应商设置页无法键盘粘贴及设置窗口无法用 Cmd+W 关闭的问题；密钥输入框保留原生复制保护。新增普通 / 安全输入框、窗口关闭重开、菜单翻译和快捷键一致性测试；145 项 Swift 测试通过。
+- 测试宿主没有前台应用的 key window，因此针对按键匹配和真实编辑器动作显式指定测试目标；正式菜单使用 nil target 交由 AppKit 第一响应者路由。实际窗口检查工具启动超时，未将其记作手工键盘实测。本版继续以未公证 Pre-release 发布，构建和附件以 GitHub Actions / Release 为准。
 
 ### v1.4.4 预发布增量
 
