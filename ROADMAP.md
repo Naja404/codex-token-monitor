@@ -4,9 +4,14 @@
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。当前增量为 **v1.4.5 未公证预发布版**，修复标准 macOS 快捷键，并保留菜单刷新稳定性、独立 Argon 额度和 DMG 安装器；本版 macOS 使用 ad-hoc 签名。**v1.4.3** 继续作为已签名公证的稳定版。实际构建、附件及发布状态以 [v1.4.5 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.5) 为准。
+“已实现”不等于“所有账号已实测”。当前增量为 **v1.4.6 未公证预发布版**，修复设置侧栏整行点击区域，保留标准 macOS 快捷键、菜单刷新稳定性、独立 Argon 额度和 DMG 安装器；本版 macOS 使用 ad-hoc 签名。**v1.4.3** 继续作为已签名公证的稳定版。实际构建、附件及发布状态以 [v1.4.6 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.6) 为准。
 
 ## 已完成
+
+### v1.4.6 设置侧栏点击区域
+
+- 四个导航按钮的完整行矩形参与点击检测，图标、文字、右侧空白和行内边距均可用于切换；选中与未选中状态使用相同点击区域。
+- 保持现有布局、选中背景、中英文和快捷键行为。macOS 安装包继续使用未公证 Pre-release 流程；Windows 仅同步版本号。
 
 ### v1.4.5 快捷键修复
 

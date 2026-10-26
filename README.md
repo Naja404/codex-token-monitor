@@ -6,11 +6,11 @@
 
 <p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
-**v1.4.5 · 修复 macOS 标准快捷键**：供应商设置支持 Cmd+V 粘贴、Cmd+C 拷贝、Cmd+X 剪切、Cmd+A 全选、Cmd+Z 撤销和 Cmd+Shift+Z 重做；Cmd+W 关闭当前设置窗口，菜单栏监控继续运行。关闭后可以再次打开设置。
+**v1.4.6 · 修复设置侧栏点击区域**：服务与账号、菜单栏与显示、外观、Codex 回写四个导航项均可点击整行空白处切换；保留 v1.4.5 的 macOS 标准快捷键修复。
 
-**本版为未公证的预发布版**：macOS App 使用 ad-hoc 签名，未使用 Developer ID、未经过 Apple 公证，首次打开可能被 Gatekeeper 拦截。v1.4.3 仍为已公证的稳定版。下载见 [v1.4.5 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.5)，完整范围见 [中英文说明](docs/releases/v1.4.5.md) 和 [路线图](ROADMAP.md)。
+**本版为未公证的预发布版**：macOS App 使用 ad-hoc 签名，未使用 Developer ID、未经过 Apple 公证，首次打开可能被 Gatekeeper 拦截。v1.4.3 仍为已公证的稳定版。下载见 [v1.4.6 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.6)，完整范围见 [中英文说明](docs/releases/v1.4.6.md) 和 [路线图](ROADMAP.md)。
 
-v1.4.5 restores standard macOS editing shortcuts in provider settings and Cmd+W to close the settings window while monitoring continues. Secure fields keep their native copy protection. **This prerelease is ad-hoc signed and not Apple-notarized.** v1.4.3 remains the notarized stable release.
+v1.4.6 makes the entire settings sidebar row clickable, including empty space, and retains the standard macOS keyboard shortcuts. **This prerelease is ad-hoc signed and not Apple-notarized.** v1.4.3 remains the notarized stable release.
 
 ### macOS 快捷键
 
@@ -231,10 +231,10 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.5 预发布下载 | 使用方式 |
+| 平台 | v1.4.6 预发布下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.5/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.5/Codex-Token-Monitor-macOS-arm64.zip) | 未公证预发布；挂载 DMG，将 App 拖到 Applications |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.5/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.6/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.6/Codex-Token-Monitor-macOS-arm64.zip) | 未公证预发布；挂载 DMG，将 App 拖到 Applications |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.6/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
