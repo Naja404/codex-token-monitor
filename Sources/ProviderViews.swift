@@ -292,6 +292,7 @@ struct MonitorSettingsView: View {
                     Button { selection = section } label: {
                         Label(L10n.text(section.rawValue), systemImage: section.symbol)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                            .contentShape(Rectangle())
                             .background {
                                 RoundedRectangle(cornerRadius: 8).fill(.tint).opacity(selection == section ? 0.14 : 0)
                             }
