@@ -6,11 +6,19 @@
 
 <p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
-**v1.4.6 · 修复设置侧栏点击区域**：服务与账号、菜单栏与显示、外观、Codex 回写四个导航项均可点击整行空白处切换；保留 v1.4.5 的 macOS 标准快捷键修复。
+**v1.4.7 · 正式版**：设置侧栏使用整行原生点击区域；新增“关于与更新”，展示 GitHub 地址、当前版本与构建号，并支持手动检查更新。macOS App 和 DMG 已完成 Developer ID 签名、Apple 公证及票据验证。
 
-**本版为未公证的预发布版**：macOS App 使用 ad-hoc 签名，未使用 Developer ID、未经过 Apple 公证，首次打开可能被 Gatekeeper 拦截。v1.4.3 仍为已公证的稳定版。下载见 [v1.4.6 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.6)，完整范围见 [中英文说明](docs/releases/v1.4.6.md) 和 [路线图](ROADMAP.md)。
+下载见 [v1.4.7 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.7)，完整范围见 [中英文说明](docs/releases/v1.4.7.md) 和 [路线图](ROADMAP.md)。安装后在“关于与更新”确认 **v1.4.7 (19)**，以免仍在运行旧版。
 
-v1.4.6 makes the entire settings sidebar row clickable, including empty space, and retains the standard macOS keyboard shortcuts. **This prerelease is ad-hoc signed and not Apple-notarized.** v1.4.3 remains the notarized stable release.
+v1.4.7 adds reliable full-row settings navigation and an About & Updates page with the repository URL, installed version/build and manual update checks. The macOS app and DMG are Developer ID signed and Apple-notarized.
+
+### 关于与更新
+
+设置 → **关于与更新**：默认只检查正式版，可选择包含预发布版本；仅在点击“检查更新”时访问 GitHub，不发送供应商凭据。发现新版后打开对应发布页，由你下载并安装。网络失败或 GitHub 限流会明确提示，并保留手动打开发布页的入口。
+
+<img src="docs/images/settings-updates.png" width="740" alt="关于与更新原生视图预览：GitHub 项目地址、当前版本、预发布选项和检查更新按钮">
+
+图片由最终源码的原生视图生成，不含真实账户信息；SwiftPM 预览显示“开发版本”，正式安装包从自身 Info.plist 读取版本和构建号。侧栏底部也提供 GitHub 链接与版本信息。
 
 ### macOS 快捷键
 
@@ -231,18 +239,18 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.6 预发布下载 | 使用方式 |
+| 平台 | v1.4.7 正式版下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.6/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.6/Codex-Token-Monitor-macOS-arm64.zip) | 未公证预发布；挂载 DMG，将 App 拖到 Applications |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.6/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.7/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.7/Codex-Token-Monitor-macOS-arm64.zip) | Apple 已公证；挂载 DMG，将 App 拖到 Applications |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.7/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
-优先下载 DMG；需要解压方式时可使用兼容 ZIP。需要已公证稳定版时，请下载 [v1.4.3](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.3)。
+优先下载 DMG；需要解压方式时可使用兼容 ZIP。v1.4.7 的 App 与 DMG 均已签名、公证并附加票据。
 
 1. 下载 `Codex-Token-Monitor-macOS-arm64.dmg`，退出旧版 App。
 2. 双击挂载，将左侧 App 拖到右侧 Applications，完成后推出磁盘。ZIP 用户解压后将 App 拖入“应用程序”。
-3. 首次打开如被 Gatekeeper 拦截，请在 Finder 中右键应用，选择“打开”。
+3. 从“应用程序”打开 App，在“关于与更新”确认版本为 v1.4.7 (19)。
 4. 在此 Mac 上登录 Codex 后启动应用；菜单栏会显示真实额度。
 
 ### Windows
@@ -384,8 +392,8 @@ dotnet run --project windows/App -c Release
 
 ```bash
 # 示例：更新版本及对应说明后，使用尚未发布的新版本号
-git tag v1.4.6
-git push origin v1.4.6
+git tag v1.4.7
+git push origin v1.4.7
 ```
 
 经明确授权发布**未公证预发布版**时，在手动运行中填写 `release_tag` 并开启 `publish_prerelease`。只有两平台构建成功后才会上传三个安装包与 `SHA256SUMS.txt` 并发布为 Pre-release，不替换 Latest 稳定版；中英文版本说明必须明确标注 ad-hoc 签名和未公证限制。正式稳定版仍要求 Developer ID 签名、公证和票据。

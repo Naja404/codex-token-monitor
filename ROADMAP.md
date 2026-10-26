@@ -4,9 +4,17 @@
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。当前增量为 **v1.4.6 未公证预发布版**，修复设置侧栏整行点击区域，保留标准 macOS 快捷键、菜单刷新稳定性、独立 Argon 额度和 DMG 安装器；本版 macOS 使用 ad-hoc 签名。**v1.4.3** 继续作为已签名公证的稳定版。实际构建、附件及发布状态以 [v1.4.6 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.6) 为准。
+“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.7 正式版**：修复设置侧栏整行点击，新增 GitHub 地址、版本号和手动更新检查；保留标准快捷键、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名，Apple 公证结果均为 Accepted，已附加票据。实际构建、附件及发布状态以 [v1.4.7 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.7) 为准。
 
 ## 已完成
+
+### v1.4.7 正式版：侧栏与更新
+
+- 用覆盖整行的原生按钮接收侧栏点击，设置宿主明确分发该区域；图标、文字、右侧空白和边距都命中同一控件。测试覆盖中英文五个导航项及切换后的选中状态。
+- 新增“关于与更新”、侧栏 GitHub 链接与版本号；正式包读取自身版本/构建号。默认检查正式版，可手动包含预发布；按语义版本比较，跳过草稿、无 macOS 包及无效标签，失败不误报最新。
+- 真实 GitHub 更新请求验证通过；新增检查更新、导航命中及原生预览测试。完整测试、Release 构建和既有快捷键 / Touch Bar 回归通过。原生窗口检查工具超时，鼠标验证以宿主命中测试为据，不记作手工点击实测。
+- App 和 DMG 都已 Developer ID 签名、Apple 公证及附加票据；Gatekeeper、镜像内 App、公证票据和资源验证通过。Windows 仅同步版本号。README 增加关于与更新原生预览。
+
 
 ### v1.4.6 设置侧栏点击区域
 
