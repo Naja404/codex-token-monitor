@@ -90,6 +90,9 @@ jobs:
       - name: Run regression tests
         run: swift test
 
+      - name: Generate macOS app icon
+        run: bash scripts/create-app-icon.sh
+
       - name: Assemble app bundle
         run: |
           APP="dist/Codex Token Monitor.app"
