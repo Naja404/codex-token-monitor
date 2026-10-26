@@ -2,6 +2,18 @@
 
 v1.4.4 新增 DMG 安装窗口。双击 DMG 后显示 App、指向 `/Applications` 的快捷方式和中英文拖拽提示。ZIP 仍保留供兼容下载。
 
+## 应用图标
+
+`Assets/AppIcon.png` 保留原始图案。修改图案后运行：
+
+```bash
+bash scripts/create-app-icon.sh
+```
+
+脚本使用 AppKit 将图案放到 macOS 标准图标画布上：1024px 画布、居中的 824px 不透明圆角主体、透明外边距，并裁去原图的边缘杂散透明像素。随后生成完整的十种 PNG 尺寸和 `Assets/AppIcon.icns`。这使新版 macOS 能识别完整图标主体，避免把图案缩小后套进灰色底板；传统 `.icns` 同时兼容 macOS 14 起的部署目标，不依赖 Xcode 的 `actool`。
+
+Release 工作流在组装 App 前运行同一个脚本。本机更新图标时，应在复制资源和更新 Info.plist 后重新签名 App，并刷新该应用的 LaunchServices 注册；不要重建整个系统的应用索引。临时预览包用完后应注销，避免启动器产生重复条目。
+
 ## 从 App 生成 DMG
 
 需要 macOS、Swift、`hdiutil` 和 Python 3.10+。使用固定版本的 [dmgbuild](https://dmgbuild.readthedocs.io/) 直接写入 Finder 布局文件，无需控制 Finder，也不需要桌面会话或自动化权限。最终产物为只读压缩磁盘镜像。
