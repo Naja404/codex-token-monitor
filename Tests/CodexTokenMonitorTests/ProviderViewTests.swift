@@ -363,6 +363,29 @@ import Testing
     try #require(bitmap.representation(using: .png, properties: [:])).write(to: url)
 }
 
+@Test(.enabled(if: ProcessInfo.processInfo.environment["UPDATE_PREVIEW_DIR"] != nil))
+@MainActor func rendersAboutAndUpdatesPreview() throws {
+    _ = NSApplication.shared
+    let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["UPDATE_PREVIEW_DIR"]))
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let name = "about-preview-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let model = UsageModel(defaults: defaults)
+    let store = ProviderStore(codex: model, defaults: defaults)
+    defer { store.stop() }
+    try capture(HStack(spacing: 0) {
+        SettingsSidebar(selection: .constant(.about), language: .simplifiedChinese)
+        Divider()
+        VStack(alignment: .leading, spacing: 18) {
+            Text("关于与更新").font(.title2.weight(.semibold))
+            AppAboutView()
+            Spacer()
+        }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+    }.background { MonitorBackdrop() }.modifier(MonitorThemeScope(appearance: store.appearance)),
+        size: .init(width: 740, height: 600), url: directory.appendingPathComponent("settings-updates.png"))
+}
+
 @Test(.enabled(if: ProcessInfo.processInfo.environment["INTERACTION_PREVIEW_DIR"] != nil))
 @MainActor func rendersDisclosureAndLanguageLayouts() async throws {
     _ = NSApplication.shared

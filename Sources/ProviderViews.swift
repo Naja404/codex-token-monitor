@@ -254,7 +254,7 @@ private extension View {
 }
 
 enum MonitorSettingsSection: String, CaseIterable, Identifiable {
-    case providers = "服务与账号", display = "菜单栏与显示", appearance = "外观", writeBack = "Codex 回写"
+    case providers = "服务与账号", display = "菜单栏与显示", appearance = "外观", writeBack = "Codex 回写", about = "关于与更新"
     var id: String { rawValue }
     var symbol: String {
         switch self {
@@ -262,6 +262,7 @@ enum MonitorSettingsSection: String, CaseIterable, Identifiable {
         case .display: "menubar.rectangle"
         case .appearance: "paintpalette"
         case .writeBack: "arrow.up.doc"
+        case .about: "info.circle"
         }
     }
 }
@@ -286,21 +287,7 @@ struct MonitorSettingsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("MONITOR").font(.caption.weight(.semibold)).monitorSecondary().padding(10)
-                ForEach(MonitorSettingsSection.allCases) { section in
-                    Button { selection = section } label: {
-                        Label(L10n.text(section.rawValue), systemImage: section.symbol)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
-                            .contentShape(Rectangle())
-                            .background {
-                                RoundedRectangle(cornerRadius: 8).fill(.tint).opacity(selection == section ? 0.14 : 0)
-                            }
-                    }.buttonStyle(.plain).accessibilityAddTraits(selection == section ? .isSelected : [])
-                }
-                Spacer()
-                Text(L10n.text("本地读取 · 按需开启")).font(.caption).monitorSecondary().padding(10)
-            }.padding(8).frame(width: store.language == .english ? 194 : 160).background(Color.primary.opacity(0.035))
+            SettingsSidebar(selection: $selection, language: store.language)
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -310,6 +297,7 @@ struct MonitorSettingsView: View {
                     case .display: displaySettings
                     case .appearance: MonitorAppearanceSettings(appearance: store.appearance)
                     case .writeBack: CodexWriteBackPane(model: model)
+                    case .about: AppAboutView()
                     }
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
             }

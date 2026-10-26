@@ -284,16 +284,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 }
 
 @MainActor
-final class MonitorSettingsHostingController: NSHostingController<MonitorSettingsView> {
+final class MonitorSettingsHostingController: NSViewController {
     private let quotaController: MonitorHostingController
+    private let rootView: MonitorSettingsView
 
     init(rootView: MonitorSettingsView, quotaController: MonitorHostingController) {
         self.quotaController = quotaController
-        super.init(rootView: rootView)
+        self.rootView = rootView
+        super.init(nibName: nil, bundle: nil)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func loadView() { view = SettingsHostingView(rootView: rootView) }
 
     override func makeTouchBar() -> NSTouchBar? { quotaController.touchBar }
 }
