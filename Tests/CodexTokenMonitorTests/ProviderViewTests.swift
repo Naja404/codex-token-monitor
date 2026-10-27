@@ -363,6 +363,32 @@ import Testing
     try #require(bitmap.representation(using: .png, properties: [:])).write(to: url)
 }
 
+@Test(.enabled(if: ProcessInfo.processInfo.environment["NOTIFICATION_PREVIEW_DIR"] != nil))
+@MainActor func rendersLocalNotificationSettingsPreview() async throws {
+    _ = NSApplication.shared
+    let directory = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["NOTIFICATION_PREVIEW_DIR"]))
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let name = "notifications-preview-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let controller = LocalNotificationController(defaults: defaults, getAuthorization: { .allowed },
+        requestAuthorization: { true }, send: { _, _ in }, cancelPending: {})
+    controller.update { $0.enabled = true; $0.kinds = Set(LocalAlertKind.allCases) }
+    await controller.refreshAuthorization()
+    let store = ProviderStore(codex: UsageModel(defaults: defaults), defaults: defaults)
+    defer { store.stop() }
+    try capture(HStack(spacing: 0) {
+        SettingsSidebar(selection: .constant(.notifications), language: .simplifiedChinese)
+        Divider()
+        VStack(alignment: .leading, spacing: 18) {
+            Text("通知").font(.title2.weight(.semibold))
+            LocalNotificationSettingsView(controller: controller)
+            Spacer(minLength: 0)
+        }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+    }.background { MonitorBackdrop() }.modifier(MonitorThemeScope(appearance: store.appearance)),
+        size: .init(width: 820, height: 760), url: directory.appendingPathComponent("local-notifications.png"))
+}
+
 @Test(.enabled(if: ProcessInfo.processInfo.environment["UPDATE_PREVIEW_DIR"] != nil))
 @MainActor func rendersAboutAndUpdatesPreview() throws {
     _ = NSApplication.shared

@@ -57,6 +57,7 @@ final class ProviderStore: ObservableObject {
     private var teamoFailures = 0
     private let readTeamo: @Sendable (Bool) async throws -> TeamoUsageSnapshot
     let appearance: MonitorAppearance
+    let localNotifications: LocalNotificationController
     @Published private(set) var popoverVisible = false
     @Published private(set) var expandedProviders: Set<MonitorProvider> = []
     @Published private(set) var language: AppLanguage
@@ -125,6 +126,7 @@ final class ProviderStore: ObservableObject {
         self.defaults = defaults
         language = AppLanguage(rawValue: defaults.string(forKey: "monitorLanguage") ?? "") ?? .simplifiedChinese
         appearance = MonitorAppearance(defaults: defaults)
+        localNotifications = LocalNotificationController(defaults: defaults)
         self.readAntigravity = readAntigravity
         self.readClaude = readClaude
         self.readWarp = readWarp

@@ -6,11 +6,25 @@
 
 <p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
-**v1.4.7 · 正式版**：设置侧栏使用整行原生点击区域；新增“关于与更新”，展示 GitHub 地址、当前版本与构建号，并支持手动检查更新。macOS App 和 DMG 已完成 Developer ID 签名、Apple 公证及票据验证。
+**v1.4.8 · 可选本地通知**：新增 macOS“通知”设置页，按需选择低额度、额度恢复、刷新失败和登录失效四类提醒，可分别调整百分比 / TeamoRouter 余额阈值及声音。默认关闭，开启时才申请系统通知权限；去重状态在重启后保留。
 
-下载见 [v1.4.7 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.7)，完整范围见 [中英文说明](docs/releases/v1.4.7.md) 和 [路线图](ROADMAP.md)。安装后在“关于与更新”确认 **v1.4.7 (19)**，以免仍在运行旧版。
+下载见 [v1.4.8 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.8)，完整范围见 [中英文说明](docs/releases/v1.4.8.md) 和 [路线图](ROADMAP.md)。macOS App 和 DMG 使用 Developer ID 签名并通过 Apple 公证；安装后在“关于与更新”确认 **v1.4.8 (20)**。
 
-v1.4.7 adds reliable full-row settings navigation and an About & Updates page with the repository URL, installed version/build and manual update checks. The macOS app and DMG are Developer ID signed and Apple-notarized.
+v1.4.8 adds opt-in macOS local notifications with independently selectable categories, quota/balance thresholds and sounds. Notifications stay off until enabled, and duplicate-alert state survives restarts. The macOS app and DMG are Developer ID signed and Apple-notarized.
+
+### 本地通知（macOS）
+
+1. 打开设置 → **通知**，勾选希望收到的类别：低额度、额度恢复、刷新失败、登录失效。四类可以独立选择；默认只有低额度类别预选，通知总开关仍为关闭。
+2. 按需设置剩余百分比（默认 ≤20%）、TeamoRouter 美元余额（默认 ≤$5）及声音，再开启“启用本地通知”，允许 macOS 的权限提示。
+3. 点击“发送测试通知”。若系统未允许通知，打开系统设置 → 通知 → Codex Token Monitor；通知样式、声音及专注模式由 macOS 控制。
+
+只检查已启用供应商的本次成功数据，菜单缓存、等待中、缺失数据和错误均不当作零额度。相同低额度不会反复提醒；百分比恢复到阈值以上至少 5 个百分点，或余额恢复到阈值以上至少 $0.50 / 阈值的 10%（取较大值）后，才重新允许提醒。恢复通知需先观察到低额度。临时刷新失败需连续 3 次已完成的失败读取才提醒；登录或密钥异常及已暂停的读取可立即提醒，每次故障只提醒一次，成功读取后重置。
+
+通知使用 macOS 本地服务，不接入远程推送服务器、不发送密钥；点击通知可返回设置。通知总开关、类别、阈值及去重状态保存在本机。应用需保持运行，退出后不再监测，也不会额外增加供应商查询频率。
+
+<img src="docs/images/local-notifications.png" width="820" alt="本地通知原生设置预览：四类通知可独立选择，支持百分比、美元余额阈值、声音和测试通知">
+
+图片为隔离测试配置的原生视图预览，展示全部类别可选；不代表默认开启或系统已实际授权，不含真实账户信息。
 
 ### 关于与更新
 
@@ -239,18 +253,18 @@ Gemini 与 Claude + GPT 的 5 小时 / 每周额度分别显示，重置日期�
 
 在 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases) 选择对应平台附件：
 
-| 平台 | v1.4.7 正式版下载 | 使用方式 |
+| 平台 | v1.4.8 正式版下载 | 使用方式 |
 | --- | --- | --- |
-| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.7/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.7/Codex-Token-Monitor-macOS-arm64.zip) | Apple 已公证；挂载 DMG，将 App 拖到 Applications |
-| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.7/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
+| macOS 14+ / Apple Silicon | [DMG 拖拽安装器](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.8/Codex-Token-Monitor-macOS-arm64.dmg) · [兼容 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.8/Codex-Token-Monitor-macOS-arm64.zip) | Apple 已公证；挂载 DMG，将 App 拖到 Applications |
+| Windows 10/11 / x64 | [Windows x64 ZIP](https://github.com/Naja404/codex-token-monitor/releases/download/v1.4.8/Codex-Token-Monitor-Windows-x64.zip) | 原有 Codex 托盘功能；解压运行 `CodexTokenMonitor.exe`，无需另装 .NET |
 
 ### macOS
 
-优先下载 DMG；需要解压方式时可使用兼容 ZIP。v1.4.7 的 App 与 DMG 均已签名、公证并附加票据。
+优先下载 DMG；需要解压方式时可使用兼容 ZIP。v1.4.8 的 App 与 DMG 均已签名、公证并附加票据。
 
 1. 下载 `Codex-Token-Monitor-macOS-arm64.dmg`，退出旧版 App。
 2. 双击挂载，将左侧 App 拖到右侧 Applications，完成后推出磁盘。ZIP 用户解压后将 App 拖入“应用程序”。
-3. 从“应用程序”打开 App，在“关于与更新”确认版本为 v1.4.7 (19)。
+3. 从“应用程序”打开 App，在“关于与更新”确认版本为 v1.4.8 (20)。
 4. 在此 Mac 上登录 Codex 后启动应用；菜单栏会显示真实额度。
 
 ### Windows
@@ -392,8 +406,8 @@ dotnet run --project windows/App -c Release
 
 ```bash
 # 示例：更新版本及对应说明后，使用尚未发布的新版本号
-git tag v1.4.7
-git push origin v1.4.7
+git tag v1.4.8
+git push origin v1.4.8
 ```
 
 经明确授权发布**未公证预发布版**时，在手动运行中填写 `release_tag` 并开启 `publish_prerelease`。只有两平台构建成功后才会上传三个安装包与 `SHA256SUMS.txt` 并发布为 Pre-release，不替换 Latest 稳定版；中英文版本说明必须明确标注 ad-hoc 签名和未公证限制。正式稳定版仍要求 Developer ID 签名、公证和票据。

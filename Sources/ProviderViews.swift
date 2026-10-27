@@ -254,13 +254,14 @@ private extension View {
 }
 
 enum MonitorSettingsSection: String, CaseIterable, Identifiable {
-    case providers = "服务与账号", display = "菜单栏与显示", appearance = "外观", writeBack = "Codex 回写", about = "关于与更新"
+    case providers = "服务与账号", display = "菜单栏与显示", appearance = "外观", notifications = "通知", writeBack = "Codex 回写", about = "关于与更新"
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .providers: "switch.2"
         case .display: "menubar.rectangle"
         case .appearance: "paintpalette"
+        case .notifications: "bell"
         case .writeBack: "arrow.up.doc"
         case .about: "info.circle"
         }
@@ -296,6 +297,7 @@ struct MonitorSettingsView: View {
                     case .providers: providerSettings
                     case .display: displaySettings
                     case .appearance: MonitorAppearanceSettings(appearance: store.appearance)
+                    case .notifications: LocalNotificationSettingsView(controller: store.localNotifications)
                     case .writeBack: CodexWriteBackPane(model: model)
                     case .about: AppAboutView()
                     }
