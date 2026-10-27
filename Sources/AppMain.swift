@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import UserNotifications
 
 @main
 enum MonitorLauncher {
@@ -10,6 +11,21 @@ enum MonitorLauncher {
                 && L10n.text("全部展开", language: .english) == "Expand all"
             print(valid ? "Provider and localization resources verified" : "Provider or localization resources missing")
             exit(valid ? EXIT_SUCCESS : EXIT_FAILURE)
+        }
+        if CommandLine.arguments.contains("--verify-notifications") {
+            guard SystemLocalNotifications.isBundledApp else {
+                print("Notification verification requires the packaged app")
+                exit(EXIT_FAILURE)
+            }
+            let app = NSApplication.shared
+            app.setActivationPolicy(.accessory)
+            Task { @MainActor in
+                let status = await SystemLocalNotifications.authorization()
+                print("Local notification service: \(status). No permission requested and no notification sent.")
+                exit(status == .unavailable ? EXIT_FAILURE : EXIT_SUCCESS)
+            }
+            app.run()
+            return
         }
         if TouchBarDiagnostics.nativeProbeRequested() {
             // Keep this control experiment independent of the SwiftUI app lifecycle and live providers.
@@ -27,7 +43,7 @@ enum MonitorLauncher {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem?
     private lazy var menuFlip = MenuBarFlipAnimator(motionAllowed: { [weak self] in
         self?.providers.appearance.motion != .off && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -52,6 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         updateApplicationMenu()
+        UNUserNotificationCenter.current().delegate = self
+        Task { await providers.localNotifications.refreshAuthorization() }
         print("Codex Token Monitor 已启动，请查看 macOS 菜单栏。按 Ctrl-C 可退出。")
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -264,6 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func updateStatusTitle() {
         updateApplicationMenu()
+        providers.localNotifications.observe(providers.localNotificationObservations,
+                                              activeSources: providers.localNotificationActiveSources)
         settingsWindow?.title = L10n.text("Codex Token Monitor · 设置")
         monitorController.updateQuotaTouchBar()
         let (fiveHour, weekly) = providers.menuLines
@@ -274,6 +294,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)"
         statusItem?.button?.setAccessibilityLabel("\(providers.displayedMenuSource.title) · \(fiveHour)；\(weekly)")
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        notification.request.content.sound == nil ? [.banner, .list] : [.banner, .list, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse) async {
+        await MainActor.run { self.showSettings() }
     }
 
     private func updateApplicationMenu() {
