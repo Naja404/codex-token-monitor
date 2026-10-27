@@ -33,7 +33,7 @@ struct NotificationLevel: Sendable {
     let title: String
     let value: Double
     var unit: Unit = .percent
-    var valid: Bool { value.isFinite && value >= 0 && (unit == .dollars || value <= 100) }
+    var valid: Bool { value.isFinite && (unit == .dollars || (0...100).contains(value)) }
     var summary: String {
         title + " " + (unit == .percent ? value.formatted(.number.precision(.fractionLength(0...1))) + "%"
             : value.formatted(.currency(code: "USD")))
