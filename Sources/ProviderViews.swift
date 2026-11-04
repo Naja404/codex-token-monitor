@@ -7,6 +7,7 @@ struct MonitorView: View {
     let onQuit: () -> Void
     let onSettings: () -> Void
     var viewportHeight: CGFloat = 540
+    var onHeightChange: ((CGFloat) -> Void)?
 
     init(model: UsageModel, store: ProviderStore? = nil, onQuit: @escaping () -> Void,
          onSettings: @escaping () -> Void) {
@@ -18,6 +19,7 @@ struct MonitorView: View {
 
     var body: some View {
         MonitorPanel(model: model, store: store, onQuit: onQuit, onSettings: onSettings, viewportHeight: viewportHeight)
+            .onGeometryChange(for: CGFloat.self) { ceil($0.size.height) } action: { onHeightChange?($0) }
             .modifier(MonitorThemeScope(appearance: store.appearance, visible: store.popoverVisible))
             .environment(\.locale, store.language.locale)
     }
@@ -30,40 +32,43 @@ struct MonitorPanel: View {
     let onQuit: () -> Void
     let onSettings: () -> Void
     let viewportHeight: CGFloat
+    @State private var contentHeight: CGFloat = 540
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: "chart.bar.xaxis").font(.title3).foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.text("额度概览")).font(.headline)
-                    Text("Codex Token Monitor").font(.caption).monitorSecondary()
-                }
-                Spacer()
-                Button { store.refreshAll() } label: {
-                    Image(systemName: "arrow.clockwise").frame(width: 24, height: 24)
-                }
-                .buttonStyle(.bordered)
-                .help(L10n.text("刷新已启用的供应商"))
-                .accessibilityLabel(L10n.text("刷新所有已启用的额度"))
-                .disabled(store.availableMenuSources.isEmpty)
-            }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
-            HStack {
-                Text(L10n.text("按服务查看额度")).font(.caption).monitorSecondary()
-                Spacer()
-                Button { store.toggleAllProviderDetails() } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.down")
-                            .rotationEffect(.degrees(store.allProviderDetailsExpanded ? -180 : 0))
-                            .animation(style.disclosureAnimation(expanded: store.allProviderDetailsExpanded), value: store.allProviderDetailsExpanded)
-                            .accessibilityHidden(true)
-                        Text(store.allProviderDetailsExpanded ? L10n.text("全部收起") : L10n.text("全部展开"))
+        MonitorPopoverLayout(maxHeight: viewportHeight, contentHeight: contentHeight) {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "chart.bar.xaxis").font(.title3).foregroundStyle(.tint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.text("额度概览")).font(.headline)
+                        Text("Codex Token Monitor").font(.caption).monitorSecondary()
                     }
-                }.buttonStyle(.bordered).controlSize(.small)
-                    .disabled(store.enabledProviders.isEmpty)
-            }.padding(.horizontal, 14).padding(.bottom, 10)
-            Divider()
+                    Spacer()
+                    Button { store.refreshAll() } label: {
+                        Image(systemName: "arrow.clockwise").frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.bordered)
+                    .help(L10n.text("刷新已启用的供应商"))
+                    .accessibilityLabel(L10n.text("刷新所有已启用的额度"))
+                    .disabled(store.availableMenuSources.isEmpty)
+                }
+                .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
+                HStack {
+                    Text(L10n.text("按服务查看额度")).font(.caption).monitorSecondary()
+                    Spacer()
+                    Button { store.toggleAllProviderDetails() } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.down")
+                                .rotationEffect(.degrees(store.allProviderDetailsExpanded ? -180 : 0))
+                                .animation(style.disclosureAnimation(expanded: store.allProviderDetailsExpanded), value: store.allProviderDetailsExpanded)
+                                .accessibilityHidden(true)
+                            Text(store.allProviderDetailsExpanded ? L10n.text("全部收起") : L10n.text("全部展开"))
+                        }
+                    }.buttonStyle(.bordered).controlSize(.small)
+                        .disabled(store.enabledProviders.isEmpty)
+                }.padding(.horizontal, 14).padding(.bottom, 10)
+                Divider()
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ProviderSummaryView(model: model, store: store)
@@ -77,22 +82,57 @@ struct MonitorPanel: View {
                         }.frame(maxWidth: .infinity).padding(.vertical, 36)
                     }
                 }.padding(12)
+                    .onGeometryChange(for: CGFloat.self) { ceil($0.size.height) } action: {
+                        if $0 > 0 { contentHeight = $0 }
+                    }
 
             }
             .scrollIndicatorsFlash(onAppear: true)
-            Divider()
-            HStack {
-                Button(action: onSettings) { Label(L10n.text("供应商设置"), systemImage: "gearshape") }
-                    .buttonStyle(.bordered)
-                Spacer()
-                Button(action: onQuit) { Label(L10n.text("退出"), systemImage: "power") }
-                    .buttonStyle(.borderless).monitorSecondary()
-            }.padding(12)
+            VStack(spacing: 0) {
+                Divider()
+                HStack {
+                    Button(action: onSettings) { Label(L10n.text("供应商设置"), systemImage: "gearshape") }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                    Button(action: onQuit) { Label(L10n.text("退出"), systemImage: "power") }
+                        .buttonStyle(.borderless).monitorSecondary()
+                }.padding(12)
+            }
         }
-        .frame(width: 360, height: viewportHeight)
+        .frame(width: 360)
         .background { MonitorBackdrop() }
     }
 
+}
+
+/// Measure the fixed controls independently of the scroll viewport. The cards
+/// report their full height even when only part of them fits in the viewport.
+struct MonitorPopoverLayout: Layout {
+    let maxHeight: CGFloat
+    let contentHeight: CGFloat
+
+    private func heights(width: CGFloat, subviews: Subviews) -> (header: CGFloat, content: CGFloat, footer: CGFloat) {
+        let proposal = ProposedViewSize(width: width, height: nil)
+        let header = subviews[0].sizeThatFits(proposal).height
+        let footer = subviews[2].sizeThatFits(proposal).height
+        return (header, min(contentHeight, max(0, maxHeight - header - footer)), footer)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 360
+        let sizes = heights(width: width, subviews: subviews)
+        return CGSize(width: width, height: sizes.header + sizes.content + sizes.footer)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = heights(width: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        for (view, height) in zip(subviews, [sizes.header, sizes.content, sizes.footer]) {
+            view.place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading,
+                       proposal: ProposedViewSize(width: bounds.width, height: height))
+            y += height
+        }
+    }
 }
 
 struct ProviderDetailView: View {

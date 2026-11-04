@@ -193,16 +193,10 @@ private struct MonitorSurface: ViewModifier {
             }
             .overlay {
                 if style.usesGlassMaterial {
-                    shape.strokeBorder(LinearGradient(stops: [
-                        .init(color: .white.opacity(style.dark ? 0.68 : 0.95), location: 0),
-                        .init(color: .white.opacity(0.12), location: 0.38),
-                        .init(color: Color(nsColor: style.palette.accent).opacity(style.dark ? 0.3 : 0.22), location: 0.68),
-                        .init(color: .white.opacity(style.dark ? 0.42 : 0.85), location: 1)
-                    ], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.2)
-                        .allowsHitTesting(false)
-                    Color.white.opacity(hovering ? 0.22 : 0.06)
+                    // Uniform edge light avoids the bevel-like, indented appearance
+                    // of a bright/dim/bright border and a second inset contour.
+                    shape.strokeBorder(Color.white.opacity((style.dark ? 0.38 : 0.65) + (hovering ? 0.12 : 0)), lineWidth: 1)
                         .animation(style.animation, value: hovering)
-                        .mask(shape.inset(by: 2).strokeBorder(lineWidth: 0.5))
                         .allowsHitTesting(false)
                 } else {
                     shape.strokeBorder(LinearGradient(
