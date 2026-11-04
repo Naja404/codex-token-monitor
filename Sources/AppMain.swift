@@ -79,7 +79,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 540)
+        monitorController.onContentSizeChange = { [weak popover] size in
+            popover?.contentSize = size
+        }
         popover.contentViewController = monitorController
         startTouchBarDiagnostics()
         resignActiveObserver = NotificationCenter.default.addObserver(
@@ -122,10 +124,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             popover.performClose(sender)
         } else {
             providers.beginPopover()
-            let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
-            let height = min(540, max(240, (screen?.visibleFrame.height ?? 620) - 80))
+            let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
+            let height = (screen?.visibleFrame.height ?? 1080) / 2
             (popover.contentViewController as? MonitorHostingController)?.rootView.viewportHeight = height
-            popover.contentSize = NSSize(width: 360, height: height)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             // Supply a native bar at both scopes: an accessory popover is not
             // guaranteed to participate in SwiftUI's window-scene discovery.
@@ -334,6 +335,26 @@ final class MonitorSettingsHostingController: NSViewController {
 
 @MainActor
 final class MonitorHostingController: NSHostingController<MonitorView> {
+    var onContentSizeChange: ((NSSize) -> Void)?
+
+    override init(rootView: MonitorView) {
+        super.init(rootView: rootView)
+        sizingOptions = []
+        self.rootView.onHeightChange = { [weak self] height in
+            guard let self, height > 0 else { return }
+            let size = NSSize(width: 360, height: height)
+            if self.preferredContentSize != size {
+                self.preferredContentSize = size
+                self.onContentSizeChange?(size)
+            }
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("Use init(rootView:)")
+    }
+
     private let fiveHourItem = makeQuotaItem("codex.quota.fiveHour", width: 146)
     private let weeklyItem = makeQuotaItem("codex.quota.weekly", width: 180)
     private let catView = TouchBarRainbowCatView(frame: NSRect(x: 0, y: 0, width: 92, height: 30))
