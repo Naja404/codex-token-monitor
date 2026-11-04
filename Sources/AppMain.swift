@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popover.behavior = .transient
         popover.delegate = self
         monitorController.onContentSizeChange = { [weak popover] size in
-            popover?.contentSize = size
+            popover?.resizeWithContent(size)
         }
         popover.contentViewController = monitorController
         startTouchBarDiagnostics()
@@ -331,6 +331,19 @@ final class MonitorSettingsHostingController: NSViewController {
     override func loadView() { view = SettingsHostingView(rootView: rootView) }
 
     override func makeTouchBar() -> NSTouchBar? { quotaController.touchBar }
+}
+
+@MainActor
+extension NSPopover {
+    /// SwiftUI already interpolates the disclosure height. A second AppKit
+    /// animation for every intermediate size causes the window to lag behind it.
+    func resizeWithContent(_ size: NSSize) {
+        guard contentSize != size else { return }
+        let wasAnimating = animates
+        animates = false
+        defer { animates = wasAnimating }
+        contentSize = size
+    }
 }
 
 @MainActor
