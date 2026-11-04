@@ -1,14 +1,14 @@
 # 产品路线图 / Roadmap
 
-更新：2026-10-25。目标是把 Codex Token Monitor 逐步发展为**多供应商 AI 额度监控工具**，优先保证数据可信、读取安全、查看直观。
+更新：2026-11-04。目标是把 Codex Token Monitor 逐步发展为**多供应商 AI 额度监控工具**，优先保证数据可信、读取安全、查看直观。
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.8 正式版**：新增用户可独立选择类别的 macOS 本地通知，保留整行侧栏点击、标准快捷键、更新检查、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名并通过 Apple 公证。实际构建、附件及发布状态以 [v1.4.8 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.8) 为准。
+“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.9 正式版**：概览弹窗随内容自适应，最多占当前屏幕可用高度的一半；保留分类本地通知、更新检查、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名并通过 Apple 公证。安装包及发布状态以 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases/latest) 为准。
 
 ## 已完成
 
-### v1.4.9 本地构建：自适应弹窗
+### v1.4.9 自适应弹窗
 
 - 根据卡片实际内容收缩视口，上限为当前屏幕可用高度的一半；超出后仅内容区滚动，顶部和底部按钮固定。
 - 展开折叠、供应商开关、数据变化和重新打开时更新高度，保留原生控制器与 Touch Bar。构建与发布状态见 [v1.4.9 说明](docs/releases/v1.4.9.md)。
