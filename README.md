@@ -6,6 +6,15 @@
 
 <p align="center">macOS 多供应商 AI 额度监控；Windows 提供 Codex 系统托盘监控。</p>
 
+### v1.4.9 本地构建：弹窗高度自适应
+
+macOS 概览弹窗按实际内容调整高度，少量供应商不再撑满固定视口。高度最多占打开弹窗所在屏幕**可用高度的一半**（扣除菜单栏和 Dock）；超出后仅额度卡片区滚动，标题、刷新和底部操作保持可见。展开、折叠、供应商开关和数据变化都会重新测量。玻璃卡片改用均匀的单层边框，减少上下边缘内凹的视觉效果。版本号为 **v1.4.9 (21)**，本次安装包见本地构建产物；以下 GitHub 链接仍指向已发布的 v1.4.8。
+
+<img src="docs/images/popover-adaptive-single.png" width="360" alt="单供应商原生弹窗预览：高度随内容收缩，不保留大片空白">
+<img src="docs/images/popover-adaptive-expanded.png" width="360" alt="多供应商展开预览：视口高度受限，额度区域可以滚动，底部按钮保持可见">
+
+图片来自隔离测试数据的原生视图；高度上限设为 500 点，模拟可用高度 1000 点的屏幕，不含真实账户信息。详细变更见 [v1.4.9 说明](docs/releases/v1.4.9.md)。
+
 **v1.4.8 · 可选本地通知**：新增 macOS“通知”设置页，按需选择低额度、额度恢复、刷新失败和登录失效四类提醒，可分别调整百分比 / TeamoRouter 余额阈值及声音。默认关闭，开启时才申请系统通知权限；去重状态在重启后保留。
 
 下载见 [v1.4.8 Release](https://github.com/Naja404/codex-token-monitor/releases/tag/v1.4.8)，完整范围见 [中英文说明](docs/releases/v1.4.8.md) 和 [路线图](ROADMAP.md)。macOS App 和 DMG 使用 Developer ID 签名并通过 Apple 公证；安装后在“关于与更新”确认 **v1.4.8 (20)**。
