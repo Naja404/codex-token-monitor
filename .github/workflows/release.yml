@@ -58,7 +58,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          if [[ "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" != "true" ]]; then
+          RELEASE_IS_DRAFT=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')
+          if [[ "$RELEASE_IS_DRAFT" != "true" ]]; then
             echo "Published release assets are preserved."
             exit 0
           fi
