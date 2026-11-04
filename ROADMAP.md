@@ -4,9 +4,13 @@
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.9 正式版**：概览弹窗随内容自适应，最多占当前屏幕可用高度的一半；保留分类本地通知、更新检查、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名并通过 Apple 公证。安装包及发布状态以 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases/latest) 为准。
+“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.10 正式版**：概览弹窗随内容自适应，最多占当前屏幕可用高度的一半，明细展开和窗口高度使用同步过渡；保留分类本地通知、更新检查、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名并通过 Apple 公证。安装包及发布状态以 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases/latest) 为准。
 
 ## 已完成
+
+### v1.4.10 明细过渡
+
+- 消除 SwiftUI 逐帧高度和 AppKit 窗口缩放的动画叠加，保留弹窗打开、关闭动画及减少动效规则。真实 NSPopover 回归覆盖展开、收起、快速反向点击和动效关闭，详见 [v1.4.10 说明](docs/releases/v1.4.10.md)。
 
 ### v1.4.9 自适应弹窗
 
