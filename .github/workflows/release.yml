@@ -57,7 +57,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
-        run: gh release upload "$RELEASE_TAG" dist/Codex-Token-Monitor-Windows-x64.zip --repo "$GITHUB_REPOSITORY" --clobber
+        run: |
+          if [[ "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" != "true" ]]; then
+            echo "Published release assets are preserved."
+            exit 0
+          fi
+          gh release upload "$RELEASE_TAG" dist/Codex-Token-Monitor-Windows-x64.zip --repo "$GITHUB_REPOSITORY" --clobber
 
   release:
     runs-on: macos-15
