@@ -18,7 +18,8 @@ private let resetDetailsFixture = """
 @Test func resetCreditsDecodeSummaryAndFilterUsableDetails() throws {
     let summary = try JSONDecoder().decode(CodexResetCredits.self, from: Data(
         #"{"available_count":3,"applicable_available_count":2}"#.utf8))
-    #expect(summary.availableCount == 2)
+    #expect(summary.availableCount == 3)
+    #expect(summary.applicableCount == 2)
     #expect(summary.credits == nil)
     let details = try JSONDecoder().decode(CodexResetCredits.self, from: Data(resetDetailsFixture.utf8))
     #expect(details.availableCount == 2)
@@ -31,6 +32,13 @@ private let resetDetailsFixture = """
     let missingExpiry = try JSONDecoder().decode(CodexResetCredit.self, from: Data(
         #"{"id":"missing","reset_type":"codex_rate_limits","status":"available"}"#.utf8))
     #expect(!missingExpiry.expiryKnown)
+}
+
+@Test func resetCreditInventoryIsNotReplacedByCurrentlyApplicableCount() throws {
+    let snapshot = try JSONDecoder().decode(CodexResetCredits.self, from: Data(
+        #"{"available_count":2,"applicable_available_count":0}"#.utf8))
+    #expect(snapshot.availableCount == 2)
+    #expect(snapshot.applicableCount == 0)
 }
 
 @Test func malformedResetFeatureCannotBreakExistingQuota() throws {
@@ -56,7 +64,7 @@ private final class ResetReadProtocol: URLProtocol, @unchecked Sendable {
         let isDetails = path == "/backend-api/wham/rate-limit-reset-credits"
         let code = !valid ? 400 : (isDetails && mode.contains("failure") ? 503 : 200)
         let body = isDetails ? resetDetailsFixture : """
-        {"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":30,"limit_window_seconds":18000,"reset_at":1900000000}},"rate_limit_reset_credits":{"available_count":2}}
+        {"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":30,"limit_window_seconds":18000,"reset_at":1900000000}},"rate_limit_reset_credits":{"available_count":2,"applicable_available_count":0}}
         """
         let response = HTTPURLResponse(url: request.url!, statusCode: code, httpVersion: nil,
                                        headerFields: ["Content-Type": "application/json"])!
@@ -79,6 +87,7 @@ func resetDetailReadIsOptionalAndUsesOnlyGET(detailsFail: Bool) async throws {
     let result = try await DirectCodexUsageReader(session: session, credentialsURL: url).read()
     #expect(result.primary?.usedPercent == 30)
     #expect(result.resetCredits?.availableCount == 2)
+    #expect(result.resetCredits?.applicableCount == 0)
     #expect(result.resetCredits?.credits?.count == (detailsFail ? nil : 2))
     #expect(result.accountID == "fixture")
 }
@@ -137,34 +146,52 @@ private actor ResetSnapshotReader {
     #expect(model.resetCredits == nil)
 }
 
-@Test func resetExpiryAlertsAreOptInFreshDeduplicatedAndRetryable() throws {
-    let now = Date(timeIntervalSince1970: 1800000000)
-    let credits: [CodexResetCredit] = [
-        .init(id: "soon", expiresAt: now.addingTimeInterval(86400)),
-        .init(id: "edge", expiresAt: now.addingTimeInterval(3 * 86400)),
-        .init(id: "later", expiresAt: now.addingTimeInterval(4 * 86400)),
-        .init(id: "expired", expiresAt: now), .init(id: "no-expiry", expiresAt: nil)]
+@Test func resetExpiryAlertsProgressThroughAllSixStagesWithoutDuplicates() throws {
+    let expiry = Date(timeIntervalSince1970: 1800000000)
+    let credits: [CodexResetCredit] = [.init(id: "one", expiresAt: expiry), .init(id: "no-expiry", expiresAt: nil)]
     func observation(_ sample: String) -> NotificationObservation {
         .init(source: "codexResetCredits", title: "Codex", sample: sample, result: .resetCredits(credits))
     }
     var p = LocalNotificationPreferences(), policy = LocalNotificationPolicy()
     #expect(!p.kinds.contains(.resetCreditExpiry))
     p.enabled = true
-    #expect(policy.evaluate(observation("one"), preferences: p, now: now).isEmpty)
+    #expect(policy.evaluate(observation("off"), preferences: p, now: expiry.addingTimeInterval(-3600)).isEmpty)
     let old = p; p.kinds.insert(.resetCreditExpiry)
     policy.preferencesChanged(from: old, to: p)
-    let alerts = policy.evaluate(observation("one"), preferences: p, now: now)
-    #expect(alerts.count == 1)
-    #expect(alerts.first?.levelIDs == ["soon", "edge"])
-    #expect(policy.evaluate(observation("two"), preferences: p, now: now).isEmpty)
-    policy = try JSONDecoder().decode(LocalNotificationPolicy.self, from: JSONEncoder().encode(policy))
-    #expect(policy.evaluate(observation("three"), preferences: p, now: now).isEmpty)
-    let next = policy.evaluate(observation("four"), preferences: p, now: now.addingTimeInterval(86400))
-    #expect(next.first?.levelIDs == ["later"])
-    policy.deliveryFailed(try #require(next.first))
-    #expect(policy.evaluate(observation("four"), preferences: p, now: now.addingTimeInterval(86400)).count == 1)
+    #expect(policy.evaluate(observation("early"), preferences: p, now: expiry.addingTimeInterval(-86401)).isEmpty)
+    for stage in [1440, 720, 360, 180, 90, 30] {
+        let now = expiry.addingTimeInterval(-Double(stage * 60))
+        let alerts = policy.evaluate(observation("stage-\(stage)"), preferences: p, now: now)
+        #expect(alerts.count == 1)
+        #expect(alerts.first?.resetCreditStage == stage)
+        #expect(alerts.first?.levelIDs == ["one"])
+        #expect(policy.evaluate(observation("stage-\(stage)-repeat"), preferences: p, now: now).isEmpty)
+        policy = try JSONDecoder().decode(LocalNotificationPolicy.self, from: JSONEncoder().encode(policy))
+        #expect(policy.evaluate(observation("stage-\(stage)-restart"), preferences: p, now: now).isEmpty)
+    }
+    #expect(policy.evaluate(observation("expired"), preferences: p, now: expiry).isEmpty)
     let persisted = Data(#"{"states":{"codex":{"lastSample":"x","low":[],"announcedLow":[],"failures":0,"announcedFailure":true,"announcedSignIn":false}}}"#.utf8)
     #expect(try JSONDecoder().decode(LocalNotificationPolicy.self, from: persisted).states["codex"]?.announcedFailure == true)
+}
+
+@Test func resetExpiryStartupSkipsElapsedStagesAndFailedDeliveryRetriesOnlyCurrentStage() throws {
+    let expiry = Date(timeIntervalSince1970: 1800000000)
+    let now = expiry.addingTimeInterval(-80 * 60)
+    func sample(_ name: String) -> NotificationObservation {
+        .init(source: "codexResetCredits", title: "Codex", sample: name,
+              result: .resetCredits([.init(id: "one", expiresAt: expiry)]))
+    }
+    var p = LocalNotificationPreferences(), policy = LocalNotificationPolicy()
+    p.enabled = true; p.kinds.insert(.resetCreditExpiry)
+    let alerts = policy.evaluate(sample("startup"), preferences: p, now: now)
+    #expect(alerts.count == 1)
+    #expect(alerts.first?.resetCreditStage == 90)
+    policy.deliveryFailed(try #require(alerts.first))
+    #expect(policy.evaluate(sample("startup"), preferences: p, now: now).map(\.resetCreditStage) == [90])
+    #expect(policy.evaluate(sample("after-retry"), preferences: p, now: now).isEmpty)
+    // A corrected clock or changed expiry must not replay less urgent stages.
+    #expect(policy.evaluate(sample("older-stage"), preferences: p, now: expiry.addingTimeInterval(-4 * 3600)).isEmpty)
+    #expect(policy.evaluate(sample("next-stage"), preferences: p, now: expiry.addingTimeInterval(-30 * 60)).map(\.resetCreditStage) == [30])
 }
 
 @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEX_RESET_LIVE_TEST"] == "1"))
@@ -182,7 +209,9 @@ func readsActualCodexResetCreditsWithoutRedeeming() async throws {
     try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
     let suite = "reset-preview-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let snapshot = try JSONDecoder().decode(CodexResetCredits.self, from: Data(resetDetailsFixture.utf8))
+    let snapshot = CodexResetCredits(availableCount: 2, applicableCount: 0, credits: [
+        .init(id: "first", expiresAt: .now.addingTimeInterval(9 * 86400)),
+        .init(id: "later", expiresAt: .now.addingTimeInterval(20 * 86400))])
     let model = UsageModel(defaults: defaults, readUsage: {
         .init(primary: .init(usedPercent: 24, resetsAt: 1900000000), secondary: .init(usedPercent: 48, resetsAt: 1900300000),
               planName: "Pro", additional: [], resetCredits: snapshot)
@@ -191,19 +220,32 @@ func readsActualCodexResetCreditsWithoutRedeeming() async throws {
     let store = ProviderStore(codex: model, defaults: defaults)
     defer { store.stop() }
     store.appearance.motion = .off
-    for mode in [MonitorColorMode.light, .dark] {
-        store.appearance.mode = mode
-        store.beginPopover()
-        for expanded in [false, true] {
-            if expanded { store.toggleProviderDetails(.codex) }
-            let host = NSHostingView(rootView: MonitorView(model: model, store: store, onQuit: {}, onSettings: {}))
-            host.setFrameSize(.init(width: 360, height: 540))
-            host.layoutSubtreeIfNeeded()
-            let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-            host.cacheDisplay(in: host.bounds, to: bitmap)
-            try #require(bitmap.representation(using: .png, properties: [:]))
-                .write(to: output.appendingPathComponent("resets-\(mode.rawValue)-\(expanded).png"))
-            if expanded { store.toggleProviderDetails(.codex) }
+    let originalLanguage = UserDefaults.standard.object(forKey: "monitorLanguage")
+    defer { UserDefaults.standard.set(originalLanguage, forKey: "monitorLanguage") }
+    // Synchronous rendering cannot interleave other main-actor tests.
+    for language in AppLanguage.allCases {
+        UserDefaults.standard.set(language.rawValue, forKey: "monitorLanguage")
+        for theme in [MonitorTheme.native, .liquidGlass] {
+            store.appearance.theme = theme
+            for mode in [MonitorColorMode.light, .dark] {
+                store.appearance.mode = mode
+                store.beginPopover()
+                for expanded in [false, true] {
+                    if expanded { store.toggleProviderDetails(.codex) }
+                    let host = NSHostingView(rootView: ProviderSummaryView(model: model, store: store).padding(12)
+                        .background { MonitorBackdrop() }.modifier(MonitorThemeScope(appearance: store.appearance))
+                            .environment(\.locale, language.locale))
+                    host.setFrameSize(.init(width: 360, height: 900))
+                    host.layoutSubtreeIfNeeded()
+                    host.setFrameSize(.init(width: 360, height: host.fittingSize.height))
+                    host.layoutSubtreeIfNeeded()
+                    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                    host.cacheDisplay(in: host.bounds, to: bitmap)
+                    try #require(bitmap.representation(using: .png, properties: [:]))
+                        .write(to: output.appendingPathComponent("resets-\(theme.rawValue)-\(mode.rawValue)-\(expanded)\(language == .english ? "-en" : "").png"))
+                    if expanded { store.toggleProviderDetails(.codex) }
+                }
+            }
         }
     }
 }

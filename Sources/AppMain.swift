@@ -1559,7 +1559,8 @@ struct DirectCodexUsageReader {
             guard var limits = payload.liveRateLimits else { throw ProviderReadError.invalidResponse }
             if let details = await resetDetails {
                 limits.resetCredits = CodexResetCredits(
-                    availableCount: payload.resetCredits?.availableCount ?? details.availableCount,
+                    availableCount: details.availableCount,
+                    applicableCount: payload.resetCredits?.applicableCount,
                     credits: details.credits)
             }
             limits.accountID = auth.tokens.accountID
@@ -1629,7 +1630,7 @@ struct CodexWhamUsage: Decodable {
         case "free": return "Free"
         case "plus": return "Plus"
         case "pro": return "Pro"
-        case "team", "business": return "Business（企业工作区）"
+        case "team", "business", "self_serve_business_prolite", "self_serve_business_usage_based": return "Business（企业工作区）"
         case "enterprise": return "Enterprise（企业）"
         case "edu": return "Edu（教育）"
         case .some(let value) where !value.isEmpty: return L10n.format("未知套餐（%@）", planType!)

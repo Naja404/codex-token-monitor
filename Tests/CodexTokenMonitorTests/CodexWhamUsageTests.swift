@@ -45,7 +45,8 @@ import Testing
 
 @Test(arguments: [
     ("free", "Free"), ("plus", "Plus"), ("pro", "Pro"),
-    ("team", "Business（企业工作区）"), ("business", "Business（企业工作区）"),
+    ("team", "Business（企业工作区）"), ("self_serve_business_prolite", "Business（企业工作区）"),
+    ("self_serve_business_usage_based", "Business（企业工作区）"), ("business", "Business（企业工作区）"),
     ("enterprise", "Enterprise（企业）"), ("edu", "Edu（教育）"),
     ("future_plan", "未知套餐（future_plan）")
 ])

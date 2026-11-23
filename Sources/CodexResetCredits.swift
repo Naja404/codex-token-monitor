@@ -3,10 +3,12 @@ import SwiftUI
 
 struct CodexResetCredits: Equatable, Sendable, Decodable {
     let availableCount: Int
+    let applicableCount: Int?
     var credits: [CodexResetCredit]?
 
-    init(availableCount: Int, credits: [CodexResetCredit]? = nil) {
+    init(availableCount: Int, applicableCount: Int? = nil, credits: [CodexResetCredit]? = nil) {
         self.availableCount = availableCount
+        self.applicableCount = applicableCount
         self.credits = credits
     }
 
@@ -16,12 +18,13 @@ struct CodexResetCredits: Equatable, Sendable, Decodable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let count = try c.decodeIfPresent(Int.self, forKey: .applicableAvailableCount)
-            ?? c.decode(Int.self, forKey: .availableCount)
+        let count = try c.decode(Int.self, forKey: .availableCount)
         guard count >= 0 else {
             throw DecodingError.dataCorruptedError(forKey: .availableCount, in: c, debugDescription: "Invalid reset count")
         }
         availableCount = count
+        let applicable = try? c.decodeIfPresent(Int.self, forKey: .applicableAvailableCount)
+        applicableCount = applicable.flatMap { (0...count).contains($0) ? $0 : nil }
         credits = try c.decodeIfPresent([CodexResetCredit].self, forKey: .credits)?
             .filter { $0.status == "available" && $0.supported && $0.resetType == "codex_rate_limits" }
             .sorted { ($0.expiresAt ?? .distantFuture, $0.id) < ($1.expiresAt ?? .distantFuture, $1.id) }
@@ -74,6 +77,14 @@ struct CodexResetCredit: Equatable, Identifiable, Sendable, Decodable {
         if remaining >= 3600 { return L10n.format("%d 小时后到期", Int(ceil(remaining / 3600))) }
         return L10n.format("%d 分钟后到期", max(1, Int(ceil(remaining / 60))))
     }
+
+    func countdown(now: Date) -> (value: Int, unit: String)? {
+        guard let expiresAt, expiresAt > now else { return nil }
+        let remaining = expiresAt.timeIntervalSince(now)
+        if remaining >= 86400 { return (Int(ceil(remaining / 86400)), L10n.text("天")) }
+        if remaining >= 3600 { return (Int(ceil(remaining / 3600)), L10n.text("小时")) }
+        return (max(1, Int(ceil(remaining / 60))), L10n.text("分钟"))
+    }
 }
 
 struct CodexResetCreditsSummaryView: View {
@@ -81,7 +92,7 @@ struct CodexResetCreditsSummaryView: View {
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: "ticket").accessibilityHidden(true)
-            Text(model.resetCredits.map { L10n.format("重置券 · %d 次可用", $0.availableCount) }
+            Text(model.resetCredits.map { L10n.format("重置券 · 持有 %d 张", $0.availableCount) }
                  ?? L10n.text("重置券 · 暂不可用"))
             Spacer(minLength: 0)
             if model.resetCredits != nil, !model.resetCreditsCurrent, model.rateLimitStatus != .loading {
@@ -94,18 +105,19 @@ struct CodexResetCreditsSummaryView: View {
 struct CodexResetCreditsDetailView: View {
     @ObservedObject var model: UsageModel
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.text("可用重置券")).font(.subheadline.weight(.medium))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(L10n.text("重置券明细")).font(.subheadline.weight(.semibold))
+                Spacer()
+                if let count = model.resetCredits?.applicableCount {
+                    Text(L10n.format("当前适用 %d 张", count)).font(.caption).monitorSecondary()
+                }
+            }
             if let snapshot = model.resetCredits {
                 if let credits = snapshot.credits, !credits.isEmpty {
                     TimelineView(.periodic(from: .now, by: 60)) { context in
                         ForEach(Array(credits.enumerated()), id: \.element.id) { index, credit in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(L10n.format("重置券 %d", index + 1) + " · " + credit.remainingDescription(now: context.date))
-                                if let expiry = credit.expiresAt {
-                                    Text(L10n.text("到期 ") + L10n.date(expiry)).monitorSecondary()
-                                }
-                            }.font(.caption).fixedSize(horizontal: false, vertical: true)
+                            CodexResetCreditCard(credit: credit, index: index + 1, now: context.date)
                         }
                     }
                     if !model.resetCreditDetailsCurrent {
@@ -113,7 +125,7 @@ struct CodexResetCreditsDetailView: View {
                             .font(.caption2).monitorSecondary()
                     }
                 } else {
-                    Text(L10n.text(snapshot.availableCount == 0 ? "暂无可用重置券" : "有效期暂不可用"))
+                    Text(L10n.text(snapshot.availableCount == 0 ? "暂无重置券" : "有效期暂不可用"))
                         .font(.caption).monitorSecondary()
                 }
             } else {
@@ -121,5 +133,48 @@ struct CodexResetCreditsDetailView: View {
                     .font(.caption).monitorSecondary()
             }
         }
+    }
+}
+
+private struct CodexResetCreditCard: View {
+    @Environment(\.monitorStyle) private var style
+    let credit: CodexResetCredit
+    let index: Int
+    let now: Date
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "ticket")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color(nsColor: style.palette.accent))
+                .frame(width: 30, height: 34)
+                .background(Color(nsColor: style.palette.accent).opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(L10n.format("重置券 %d", index)).font(.caption.weight(.semibold))
+                Text(credit.expiresAt.map { L10n.text("到期 ") + L10n.date($0) }
+                     ?? credit.remainingDescription(now: now))
+                    .font(.caption2).monitorSecondary().fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            if let countdown = credit.countdown(now: now) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(String(countdown.value)).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+                        Text(countdown.unit).font(.caption)
+                    }
+                    Text(L10n.text("后到期")).font(.caption2).monitorSecondary()
+                }.fixedSize()
+            } else if let expiry = credit.expiresAt, expiry <= now {
+                Text(L10n.text("已到期")).font(.caption).monitorSecondary()
+            }
+        }
+        .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: style.palette.background).opacity(style.usesGlassMaterial ? 0.4 : 0.75),
+                    in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color(nsColor: style.palette.secondary).opacity(0.15), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.format("重置券 %d", index) + "，" + credit.remainingDescription(now: now)
+                            + (credit.expiresAt.map { "，" + L10n.text("到期 ") + L10n.date($0) } ?? ""))
     }
 }
