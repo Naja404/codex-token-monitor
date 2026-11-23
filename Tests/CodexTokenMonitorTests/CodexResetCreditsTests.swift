@@ -19,7 +19,6 @@ private let resetDetailsFixture = """
     let summary = try JSONDecoder().decode(CodexResetCredits.self, from: Data(
         #"{"available_count":3,"applicable_available_count":2}"#.utf8))
     #expect(summary.availableCount == 3)
-    #expect(summary.applicableCount == 2)
     #expect(summary.credits == nil)
     let details = try JSONDecoder().decode(CodexResetCredits.self, from: Data(resetDetailsFixture.utf8))
     #expect(details.availableCount == 2)
@@ -38,7 +37,6 @@ private let resetDetailsFixture = """
     let snapshot = try JSONDecoder().decode(CodexResetCredits.self, from: Data(
         #"{"available_count":2,"applicable_available_count":0}"#.utf8))
     #expect(snapshot.availableCount == 2)
-    #expect(snapshot.applicableCount == 0)
 }
 
 @Test func malformedResetFeatureCannotBreakExistingQuota() throws {
@@ -87,7 +85,6 @@ func resetDetailReadIsOptionalAndUsesOnlyGET(detailsFail: Bool) async throws {
     let result = try await DirectCodexUsageReader(session: session, credentialsURL: url).read()
     #expect(result.primary?.usedPercent == 30)
     #expect(result.resetCredits?.availableCount == 2)
-    #expect(result.resetCredits?.applicableCount == 0)
     #expect(result.resetCredits?.credits?.count == (detailsFail ? nil : 2))
     #expect(result.accountID == "fixture")
 }
@@ -209,7 +206,7 @@ func readsActualCodexResetCreditsWithoutRedeeming() async throws {
     try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
     let suite = "reset-preview-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let snapshot = CodexResetCredits(availableCount: 2, applicableCount: 0, credits: [
+    let snapshot = CodexResetCredits(availableCount: 2, credits: [
         .init(id: "first", expiresAt: .now.addingTimeInterval(9.0 * 86400)),
         .init(id: "later", expiresAt: .now.addingTimeInterval(20.0 * 86400))])
     let model = UsageModel(defaults: defaults, readUsage: {

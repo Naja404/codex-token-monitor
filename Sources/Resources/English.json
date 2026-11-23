@@ -334,7 +334,6 @@
   "尚未读取到重置券信息": "Reset credit information has not been read yet",
   "重置券 · 持有 %d 张": "Reset credits · %d owned",
   "重置券明细": "Reset credit details",
-  "当前适用 %d 张": "%d currently applicable",
   "暂无重置券": "No reset credits",
   "后到期": "until expiry",
   "天": "days",
@@ -344,5 +343,6 @@
   "重置券将在 %@ 内到期：%@": "Reset credits expire within %@: %@",
   "%@ 小时": "%@ hours",
   "重置券到期提醒默认关闭。开启后，在到期前 24、12、6、3、1.5、0.5 小时分阶段提醒，每张券每阶段一次。重启或恢复监测时只提醒当前阶段，不补发已错过的阶段。": "Reset expiry alerts are off by default. When enabled, reminders are sent at 24, 12, 6, 3, 1.5 and 0.5 hours before expiry, once per credit per stage. Restarting or resuming monitoring only alerts for the current stage; missed stages are skipped.",
-  "%d 分钟": "%d minutes"
+  "%d 分钟": "%d minutes",
+  "持有 %d 张": "%d owned"
 }
