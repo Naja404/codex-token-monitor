@@ -58,6 +58,7 @@ struct LocalQuotaAlert: Sendable {
     let kind: LocalAlertKind
     var details: String = ""
     var levelIDs: Set<String> = []
+    var resetCreditStage: Int?
     var title: String { source == "test" ? L10n.text("测试通知") : sourceTitle + " · " + kind.title }
     var body: String {
         if source == "test" { return details }
@@ -66,7 +67,9 @@ struct LocalQuotaAlert: Sendable {
         case .recovery: return L10n.format("剩余额度已恢复：%@", details)
         case .refreshFailure: return L10n.text("额度刷新持续失败或已暂停。请打开应用查看详情。")
         case .signIn: return L10n.text("登录或密钥不可用，请打开供应商设置重新验证。")
-        case .resetCreditExpiry: return L10n.format("以下重置券将在 3 天内到期：%@", details)
+        case .resetCreditExpiry:
+            return L10n.format("重置券将在 %@ 内到期：%@",
+                               LocalNotificationPolicy.resetExpiryStageTitle(resetCreditStage ?? 30), details)
         }
     }
 }
@@ -80,9 +83,25 @@ struct LocalNotificationPolicy: Codable, Equatable {
         var failures = 0
         var announcedFailure = false
         var announcedSignIn = false
-        var announcedResetCredits: Set<String>?
+        var resetCreditStages: [String: Set<Int>]?
     }
     var states: [String: State] = [:]
+
+    // Minutes before expiration, from the earliest reminder to the most urgent.
+    static let resetExpiryStages = [1440, 720, 360, 180, 90, 30]
+
+    static func resetExpiryStageTitle(_ minutes: Int) -> String {
+        if minutes >= 60 {
+            return L10n.format("%@ 小时", (Double(minutes) / 60).formatted(.number.precision(.fractionLength(0...1))))
+        }
+        return L10n.format("%d 分钟", minutes)
+    }
+
+    static func resetExpiryStage(for credit: CodexResetCredit, now: Date) -> Int? {
+        guard credit.status == "available", credit.supported, let date = credit.expiresAt, date > now else { return nil }
+        let remaining = date.timeIntervalSince(now)
+        return resetExpiryStages.last { remaining <= Double($0 * 60) }
+    }
 
     mutating func retainSources(_ active: Set<String>) { states = states.filter { active.contains($0.key) } }
 
@@ -109,16 +128,21 @@ struct LocalNotificationPolicy: Codable, Equatable {
         switch observation.result {
         case let .resetCredits(credits):
             guard p.kinds.contains(.resetCreditExpiry) else { return [] }
-            let expiring = credits.filter {
-                guard $0.status == "available", $0.supported, let date = $0.expiresAt else { return false }
-                return date > now && date.timeIntervalSince(now) <= 3 * 86400
-                    && !(state.announcedResetCredits ?? []).contains($0.id)
-            }
-            if !expiring.isEmpty {
+            for stage in Self.resetExpiryStages {
+                let expiring = credits.filter {
+                    Self.resetExpiryStage(for: $0, now: now) == stage
+                        && !(state.resetCreditStages?[$0.id] ?? []).contains(stage)
+                }
+                guard !expiring.isEmpty else { continue }
                 alerts.append(.init(source: observation.source, sourceTitle: observation.title, kind: .resetCreditExpiry,
                                     details: expiring.compactMap { $0.expiresAt.map { L10n.date($0) } }.joined(separator: " · "),
-                                    levelIDs: Set(expiring.map(\.id))))
-                state.announcedResetCredits = (state.announcedResetCredits ?? []).union(expiring.map(\.id))
+                                    levelIDs: Set(expiring.map(\.id)), resetCreditStage: stage))
+                var ledger = state.resetCreditStages ?? [:]
+                for credit in expiring {
+                    // Skip elapsed stages after launch or a long refresh gap.
+                    ledger[credit.id, default: []].formUnion(Self.resetExpiryStages.filter { $0 >= stage })
+                }
+                state.resetCreditStages = ledger
             }
         case let .failure(credentials, terminal):
             if credentials {
@@ -162,7 +186,10 @@ struct LocalNotificationPolicy: Codable, Equatable {
         case .recovery: states[alert.source]?.low.formUnion(alert.levelIDs)
         case .refreshFailure: states[alert.source]?.announcedFailure = false
         case .signIn: states[alert.source]?.announcedSignIn = false
-        case .resetCreditExpiry: states[alert.source]?.announcedResetCredits?.subtract(alert.levelIDs)
+        case .resetCreditExpiry:
+            if let stage = alert.resetCreditStage {
+                for credit in alert.levelIDs { states[alert.source]?.resetCreditStages?[credit]?.remove(stage) }
+            }
         }
     }
 }
