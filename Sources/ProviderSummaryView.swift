@@ -49,6 +49,7 @@ struct ProviderSummaryView: View {
                      error: model.readError?.localizedDescription, manual: model.rateLimitStatus == .manual,
                      successAt: model.lastSuccessAt) {
                     metricLine(ProviderStore.codexMetrics(model))
+                    CodexResetCreditsSummaryView(model: model)
                 }
             }
             if store.antigravityEnabled {

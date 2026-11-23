@@ -152,6 +152,7 @@ struct ProviderDetailView: View {
                     QuotaMetricRows(metrics: ProviderStore.codexMetrics(model),
                                     loading: model.rateLimitStatus == .loading)
                     updatedAt(model.lastSuccessAt, source: "OpenAI · API")
+                    CodexResetCreditsDetailView(model: model)
                     if !model.additionalLimits.isEmpty {
                         DisclosureGroup(L10n.text("附加模型额度")) {
                             ForEach(Array(model.additionalLimits.enumerated()), id: \.offset) { _, limit in

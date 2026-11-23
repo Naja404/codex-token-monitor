@@ -16,14 +16,15 @@ Codex Token Monitor 是一个原生桌面额度监控工具。macOS 支持多供
 - **菜单栏常驻**：双行额度、重置时间、固定来源或自动轮播；Windows 在系统托盘显示 Codex 余量。
 - **紧凑概览**：弹窗按内容自动调整高度，最多占所在屏幕可用高度的一半，超出部分滚动查看；可单独或全部展开明细。
 - **稳定刷新**：查询中保留最近一次成功显示，相同结果不重复更新；失败、缺失数据和真实零额度分别处理。
-- **可选本地通知**：按需选择低额度、额度恢复、刷新失败和登录失效提醒，支持阈值、声音与测试通知，默认关闭。
+- **Codex 重置券**：查看可用次数、逐张有效期与剩余时间。
+- **可选本地通知**：按需选择低额度、额度恢复、刷新失败、登录失效和重置券即将到期提醒，支持阈值、声音与测试通知，默认关闭。
 - **外观与语言**：四套主题，支持浅色、深色、跟随系统、减少动效，以及中文–简体和 English。
 - **Touch Bar**：查看当前供应商额度、重置时间和刷新按钮，彩虹猫随剩余额度联动。
 - **Codex 回写**：可选手动或定时向自建 API 回写 Codex 额度，自动回写默认关闭。
 - **便捷安装与更新**：macOS 提供拖拽安装 DMG，App 内可查看版本并手动检查更新。
 
 <p>
-  <img src="docs/images/popover-adaptive-single.png" width="360" alt="紧凑的单供应商额度概览，示例数据">
+  <img src="docs/images/codex-reset-credits.png" width="360" alt="Codex 额度与可用重置券次数、有效期和剩余时间，示例数据">
   <img src="docs/images/popover-adaptive-expanded.png" width="360" alt="展开多供应商明细，额度区域可滚动，示例数据">
 </p>
 
@@ -33,7 +34,7 @@ Codex Token Monitor 是一个原生桌面额度监控工具。macOS 支持多供
 
 | 服务 | 展示内容 | 连接方式 |
 | --- | --- | --- |
-| Codex | 5 小时、每周余量、重置时间及附加模型额度 | 本机 Codex 的 ChatGPT 登录凭据 |
+| Codex | 5 小时、每周余量、重置时间、附加模型额度及重置券（macOS） | 本机 Codex 的 ChatGPT 登录凭据 |
 | Antigravity | Gemini、Claude + GPT、Gemini 4 Argon 各自的额度 | 已安装并登录的官方 `agy` CLI |
 | Claude Code | 官方订阅的 5 小时与每周余量 | 本机默认 OAuth 登录凭据 |
 | Warp | 个人周期 Credits、重置时间与额外 Credits | 个人 `wk-…` API Key |

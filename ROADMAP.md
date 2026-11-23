@@ -1,12 +1,17 @@
 # 产品路线图 / Roadmap
 
-更新：2026-11-04。目标是把 Codex Token Monitor 逐步发展为**多供应商 AI 额度监控工具**，优先保证数据可信、读取安全、查看直观。
+更新：2026-11-23。目标是把 Codex Token Monitor 逐步发展为**多供应商 AI 额度监控工具**，优先保证数据可信、读取安全、查看直观。
 
 本文件是当前范围与进度的统一入口。`docs/multi-provider-spec.md`、`docs/warp-and-popover-spec.md` 保留历史阶段的设计和验证记录；与新需求冲突时，以当前代码、本路线图及对应版本说明为准。
 
-“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.10 正式版**：概览弹窗随内容自适应，最多占当前屏幕可用高度的一半，明细展开和窗口高度使用同步过渡；保留分类本地通知、更新检查、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名并通过 Apple 公证。安装包及发布状态以 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases/latest) 为准。
+“已实现”不等于“所有账号已实测”。当前版本为 **v1.4.11 正式版**：概览弹窗随内容自适应，最多占当前屏幕可用高度的一半，明细展开和窗口高度使用同步过渡；保留分类本地通知、更新检查、稳定刷新、独立 Argon 额度和 DMG 安装器。macOS App 与 DMG 使用 Developer ID 签名并通过 Apple 公证。安装包及发布状态以 [GitHub Releases](https://github.com/Naja404/codex-token-monitor/releases/latest) 为准。
 
 ## 已完成
+
+### v1.4.11 Codex 重置券
+
+- Codex 卡片显示可用重置次数，展开后展示有效期及剩余时间；刷新保留旧值，失效明细标记为上次读取。
+- 新增默认关闭的重置券到期提醒，成功读取后在 3 天内到期时提醒一次，跨重启去重。详见 [v1.4.11 说明](docs/releases/v1.4.11.md)。
 
 ### v1.4.10 明细过渡
 

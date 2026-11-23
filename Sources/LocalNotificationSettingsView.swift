@@ -20,6 +20,8 @@ struct LocalNotificationSettingsView: View {
                 }
                 Text(L10n.text("临时刷新失败连续发生 3 次才提醒；登录失效或刷新已暂停时可立即提醒。恢复提醒需先观察到低额度。"))
                     .font(.caption).monitorSecondary()
+                Text(L10n.text("重置券到期提醒默认关闭。开启后，在到期前 3 天内提醒一次；仅使用新读取的有效期，重启后不会重复提醒。"))
+                    .font(.caption).monitorSecondary()
             }
             Divider()
             Stepper(value: Binding(get: { controller.preferences.percentThreshold }, set: { value in
