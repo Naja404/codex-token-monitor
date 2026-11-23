@@ -1560,7 +1560,6 @@ struct DirectCodexUsageReader {
             if let details = await resetDetails {
                 limits.resetCredits = CodexResetCredits(
                     availableCount: details.availableCount,
-                    applicableCount: payload.resetCredits?.applicableCount,
                     credits: details.credits)
             }
             limits.accountID = auth.tokens.accountID

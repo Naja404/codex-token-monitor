@@ -3,17 +3,15 @@ import SwiftUI
 
 struct CodexResetCredits: Equatable, Sendable, Decodable {
     let availableCount: Int
-    let applicableCount: Int?
     var credits: [CodexResetCredit]?
 
-    init(availableCount: Int, applicableCount: Int? = nil, credits: [CodexResetCredit]? = nil) {
+    init(availableCount: Int, credits: [CodexResetCredit]? = nil) {
         self.availableCount = availableCount
-        self.applicableCount = applicableCount
         self.credits = credits
     }
 
     enum CodingKeys: String, CodingKey {
-        case availableCount = "available_count", applicableAvailableCount = "applicable_available_count", credits
+        case availableCount = "available_count", credits
     }
 
     init(from decoder: Decoder) throws {
@@ -23,8 +21,6 @@ struct CodexResetCredits: Equatable, Sendable, Decodable {
             throw DecodingError.dataCorruptedError(forKey: .availableCount, in: c, debugDescription: "Invalid reset count")
         }
         availableCount = count
-        let applicable = try? c.decodeIfPresent(Int.self, forKey: .applicableAvailableCount)
-        applicableCount = applicable.flatMap { (0...count).contains($0) ? $0 : nil }
         credits = try c.decodeIfPresent([CodexResetCredit].self, forKey: .credits)?
             .filter { $0.status == "available" && $0.supported && $0.resetType == "codex_rate_limits" }
             .sorted { ($0.expiresAt ?? .distantFuture, $0.id) < ($1.expiresAt ?? .distantFuture, $1.id) }
@@ -109,8 +105,8 @@ struct CodexResetCreditsDetailView: View {
             HStack {
                 Text(L10n.text("重置券明细")).font(.subheadline.weight(.semibold))
                 Spacer()
-                if let count = model.resetCredits?.applicableCount {
-                    Text(L10n.format("当前适用 %d 张", count)).font(.caption).monitorSecondary()
+                if let snapshot = model.resetCredits {
+                    Text(L10n.format("持有 %d 张", snapshot.availableCount)).font(.caption).monitorSecondary()
                 }
             }
             if let snapshot = model.resetCredits {
