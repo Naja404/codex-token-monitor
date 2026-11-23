@@ -144,37 +144,57 @@ private struct CodexResetCreditCard: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "ticket")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color(nsColor: style.palette.accent))
-                .frame(width: 30, height: 34)
-                .background(Color(nsColor: style.palette.accent).opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(L10n.format("重置券 %d", index)).font(.caption.weight(.semibold))
-                Text(credit.expiresAt.map { L10n.text("到期 ") + L10n.date($0) }
-                     ?? credit.remainingDescription(now: now))
-                    .font(.caption2).monitorSecondary().fixedSize(horizontal: false, vertical: true)
-            }
+            creditIcon
+            creditDetails
             Spacer(minLength: 4)
-            if let countdown = credit.countdown(now: now) {
-                VStack(alignment: .trailing, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(String(countdown.value)).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                        Text(countdown.unit).font(.caption)
-                    }
-                    Text(L10n.text("后到期")).font(.caption2).monitorSecondary()
-                }.fixedSize()
-            } else if let expiry = credit.expiresAt, expiry <= now {
-                Text(L10n.text("已到期")).font(.caption).monitorSecondary()
-            }
+            remainingTime
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: style.palette.background).opacity(style.usesGlassMaterial ? 0.4 : 0.75),
                     in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color(nsColor: style.palette.secondary).opacity(0.15), lineWidth: 1))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L10n.format("重置券 %d", index) + "，" + credit.remainingDescription(now: now)
-                            + (credit.expiresAt.map { "，" + L10n.text("到期 ") + L10n.date($0) } ?? ""))
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var creditIcon: some View {
+        Image(systemName: "ticket")
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(Color(nsColor: style.palette.accent))
+            .frame(width: 30, height: 34)
+            .background(Color(nsColor: style.palette.accent).opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+            .accessibilityHidden(true)
+    }
+
+    private var expiryDescription: String {
+        guard let expiry = credit.expiresAt else { return credit.remainingDescription(now: now) }
+        return L10n.text("到期 ") + L10n.date(expiry)
+    }
+
+    private var creditDetails: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(L10n.format("重置券 %d", index)).font(.caption.weight(.semibold))
+            Text(expiryDescription).font(.caption2).monitorSecondary().fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder private var remainingTime: some View {
+        if let countdown = credit.countdown(now: now) {
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(String(countdown.value)).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text(countdown.unit).font(.caption)
+                }
+                Text(L10n.text("后到期")).font(.caption2).monitorSecondary()
+            }.fixedSize()
+        } else if let expiry = credit.expiresAt, expiry <= now {
+            Text(L10n.text("已到期")).font(.caption).monitorSecondary()
+        }
+    }
+
+    private var accessibilityDescription: String {
+        var parts = [L10n.format("重置券 %d", index), credit.remainingDescription(now: now)]
+        if credit.expiresAt != nil { parts.append(expiryDescription) }
+        return parts.joined(separator: "，")
     }
 }
