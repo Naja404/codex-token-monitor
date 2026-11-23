@@ -13,6 +13,7 @@ extension ProviderReadError {
 @MainActor extension ProviderStore {
     var localNotificationActiveSources: Set<String> {
         var ids = Set(availableMenuSources.map(\.rawValue))
+        if codexEnabled { ids.insert("codexResetCredits") }
         if antigravityEnabled {
             ids.formUnion(["antigravity", MenuQuotaSource.antigravityArgon.rawValue])
         }
@@ -42,6 +43,10 @@ extension ProviderReadError {
                 value.map { QuotaMetric(id: window, window: window, remainingPercent: $0.remainingPercent, resetsAt: $0.resetsAt) }
             }
             provider(.codex, false, codex.lastSuccessAt, codex.readError, metrics, attempt: codex.lastRefreshAt)
+            if codex.rateLimitStatus == .live, codex.resetCreditDetailsCurrent,
+               let credits = codex.resetCredits?.credits {
+                append("codexResetCredits", "Codex", codex.lastSuccessAt, .resetCredits(credits))
+            }
         }
         if antigravityEnabled, !isRefreshingAntigravity {
             if let error = antigravityError {

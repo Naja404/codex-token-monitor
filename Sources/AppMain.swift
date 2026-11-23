@@ -859,6 +859,10 @@ final class UsageModel: ObservableObject {
     @Published private(set) var weekly: QuotaWindow?
     @Published private(set) var planName = "套餐未识别"
     @Published private(set) var additionalLimits: [NamedRateLimits] = []
+    @Published private(set) var resetCredits: CodexResetCredits?
+    @Published private(set) var resetCreditsCurrent = false
+    @Published private(set) var resetCreditDetailsCurrent = false
+    private var resetCreditsAccountID: String?
     @Published private(set) var rateLimitStatus: RateLimitStatus = .loading
     @Published private(set) var lastRefreshAt: Date?
     @Published private(set) var lastSuccessAt: Date?
@@ -907,6 +911,8 @@ final class UsageModel: ObservableObject {
                 self.weekly = nil
                 self.planName = "套餐未识别"
                 self.additionalLimits = []
+                self.resetCreditsCurrent = false
+                self.resetCreditDetailsCurrent = false
                 self.rateLimitStatus = .unavailable
                 self.readError = error as? ProviderReadError ?? .network
                 self.onRateLimitsUpdated?()
@@ -924,6 +930,10 @@ final class UsageModel: ObservableObject {
         fiveHour = nil
         weekly = nil
         additionalLimits = []
+        resetCredits = nil
+        resetCreditsCurrent = false
+        resetCreditDetailsCurrent = false
+        resetCreditsAccountID = nil
         planName = "套餐未识别"
         readError = nil
         rateLimitStatus = .unavailable
@@ -944,6 +954,9 @@ final class UsageModel: ObservableObject {
         self.weekly = weekly
         menuMetrics = ProviderStore.codexMetrics(self)
         additionalLimits = []
+        resetCredits = nil
+        resetCreditsCurrent = false
+        resetCreditDetailsCurrent = false
         readError = nil
         rateLimitStatus = .manual
         onRateLimitsUpdated?()
@@ -1059,6 +1072,18 @@ final class UsageModel: ObservableObject {
         if !metrics.isEmpty, menuMetrics != metrics { menuMetrics = metrics }
         planName = rateLimits.planName
         additionalLimits = rateLimits.additional
+        if resetCreditsAccountID != rateLimits.accountID {
+            resetCredits = nil
+            resetCreditsAccountID = rateLimits.accountID
+        }
+        resetCreditsCurrent = rateLimits.resetCredits != nil
+        resetCreditDetailsCurrent = rateLimits.resetCredits?.credits != nil
+        if var snapshot = rateLimits.resetCredits {
+            if snapshot.credits == nil, snapshot.availableCount == resetCredits?.availableCount {
+                snapshot.credits = resetCredits?.credits
+            }
+            if resetCredits != snapshot { resetCredits = snapshot }
+        }
         rateLimitStatus = .live
         onRateLimitsUpdated?()
     }
@@ -1478,6 +1503,8 @@ struct LiveRateLimits: Sendable {
     let secondary: LiveRateLimitWindow?
     let planName: String
     let additional: [NamedRateLimits]
+    var resetCredits: CodexResetCredits? = nil
+    var accountID: String? = nil
 }
 
 struct NamedRateLimits: Sendable {
@@ -1496,6 +1523,8 @@ struct NamedRateLimits: Sendable {
 }
 
 struct DirectCodexUsageReader {
+    var session: URLSession = .shared
+    var credentialsURL: URL?
     static var authURL: URL {
         let override = ProcessInfo.processInfo.environment["CODEX_HOME"] ?? ""
         let directory = override.isEmpty ? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".codex") : URL(fileURLWithPath: override)
@@ -1503,7 +1532,7 @@ struct DirectCodexUsageReader {
     }
 
     func read() async throws -> LiveRateLimits {
-        let authURL = Self.authURL
+        let authURL = credentialsURL ?? Self.authURL
         guard let data = try? Data(contentsOf: authURL),
               let auth = try? JSONDecoder().decode(CodexAuth.self, from: data),
               !auth.tokens.accessToken.isEmpty else { throw ProviderReadError.missingCredentials }
@@ -1516,7 +1545,8 @@ struct DirectCodexUsageReader {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            async let resetDetails = try? readResetCredits(auth: auth)
+            let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else { throw ProviderReadError.invalidResponse }
             switch response.statusCode {
             case 200: break
@@ -1526,7 +1556,14 @@ struct DirectCodexUsageReader {
             default: throw ProviderReadError.http(response.statusCode)
             }
             let payload = try JSONDecoder().decode(CodexWhamUsage.self, from: data)
-            guard let limits = payload.liveRateLimits else { throw ProviderReadError.invalidResponse }
+            guard var limits = payload.liveRateLimits else { throw ProviderReadError.invalidResponse }
+            if let details = await resetDetails {
+                limits.resetCredits = CodexResetCredits(
+                    availableCount: payload.resetCredits?.availableCount ?? details.availableCount,
+                    credits: details.credits)
+            }
+            limits.accountID = auth.tokens.accountID
+            try Task.checkCancellation()
             return limits
         } catch let error as ProviderReadError {
             throw error
@@ -1536,6 +1573,18 @@ struct DirectCodexUsageReader {
             try Task.checkCancellation()
             throw ProviderReadError.network
         }
+    }
+
+    private func readResetCredits(auth: CodexAuth) async throws -> CodexResetCredits {
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!)
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(auth.tokens.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(auth.tokens.accountID, forHTTPHeaderField: "chatgpt-account-id")
+        request.setValue("codex_cli_rs", forHTTPHeaderField: "originator")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw ProviderReadError.invalidResponse }
+        return try JSONDecoder().decode(CodexResetCredits.self, from: data)
     }
 }
 
@@ -1557,11 +1606,22 @@ struct CodexWhamUsage: Decodable {
     let planType: String?
     let rateLimit: RateLimit?
     let additionalRateLimits: [AdditionalRateLimit]?
+    let resetCredits: CodexResetCredits?
 
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
         case rateLimit = "rate_limit"
         case additionalRateLimits = "additional_rate_limits"
+        case resetCredits = "rate_limit_reset_credits"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        planType = try c.decodeIfPresent(String.self, forKey: .planType)
+        rateLimit = try c.decodeIfPresent(RateLimit.self, forKey: .rateLimit)
+        additionalRateLimits = try c.decodeIfPresent([AdditionalRateLimit].self, forKey: .additionalRateLimits)
+        // An unavailable optional reset feature must not break account quota reads.
+        resetCredits = try? c.decodeIfPresent(CodexResetCredits.self, forKey: .resetCredits)
     }
 
     var planName: String {
@@ -1591,7 +1651,7 @@ struct CodexWhamUsage: Decodable {
                     fiveHour: limit.rateLimit?.window(seconds: 18000),
                     weekly: limit.rateLimit?.window(seconds: 604800)
                 )
-            }
+            }, resetCredits: resetCredits
         )
     }
 

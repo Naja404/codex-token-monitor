@@ -4,13 +4,14 @@ import SwiftUI
 import UserNotifications
 
 enum LocalAlertKind: String, CaseIterable, Codable, Sendable {
-    case lowQuota, recovery, refreshFailure, signIn
+    case lowQuota, recovery, refreshFailure, signIn, resetCreditExpiry
     var title: String {
         switch self {
         case .lowQuota: L10n.text("低额度提醒")
         case .recovery: L10n.text("额度恢复提醒")
         case .refreshFailure: L10n.text("刷新失败提醒")
         case .signIn: L10n.text("登录失效提醒")
+        case .resetCreditExpiry: L10n.text("重置券即将到期")
         }
     }
 }
@@ -41,7 +42,10 @@ struct NotificationLevel: Sendable {
 }
 
 struct NotificationObservation: Sendable {
-    enum Result: Sendable { case success([NotificationLevel]), failure(credentials: Bool, terminal: Bool) }
+    enum Result: Sendable {
+        case success([NotificationLevel]), failure(credentials: Bool, terminal: Bool)
+        case resetCredits([CodexResetCredit])
+    }
     let source: String
     let title: String
     let sample: String
@@ -62,6 +66,7 @@ struct LocalQuotaAlert: Sendable {
         case .recovery: return L10n.format("剩余额度已恢复：%@", details)
         case .refreshFailure: return L10n.text("额度刷新持续失败或已暂停。请打开应用查看详情。")
         case .signIn: return L10n.text("登录或密钥不可用，请打开供应商设置重新验证。")
+        case .resetCreditExpiry: return L10n.format("以下重置券将在 3 天内到期：%@", details)
         }
     }
 }
@@ -75,6 +80,7 @@ struct LocalNotificationPolicy: Codable, Equatable {
         var failures = 0
         var announcedFailure = false
         var announcedSignIn = false
+        var announcedResetCredits: Set<String>?
     }
     var states: [String: State] = [:]
 
@@ -89,7 +95,8 @@ struct LocalNotificationPolicy: Codable, Equatable {
         }
     }
 
-    mutating func evaluate(_ observation: NotificationObservation, preferences p: LocalNotificationPreferences) -> [LocalQuotaAlert] {
+    mutating func evaluate(_ observation: NotificationObservation, preferences p: LocalNotificationPreferences,
+                           now: Date = .now) -> [LocalQuotaAlert] {
         guard p.enabled else { return [] }
         var state = states[observation.source] ?? State()
         guard state.lastSample != observation.sample else { return [] }
@@ -100,6 +107,19 @@ struct LocalNotificationPolicy: Codable, Equatable {
                   details: levels.map(\.summary).joined(separator: " · "), levelIDs: Set(levels.map(\.id)))
         }
         switch observation.result {
+        case let .resetCredits(credits):
+            guard p.kinds.contains(.resetCreditExpiry) else { return [] }
+            let expiring = credits.filter {
+                guard $0.status == "available", $0.supported, let date = $0.expiresAt else { return false }
+                return date > now && date.timeIntervalSince(now) <= 3 * 86400
+                    && !(state.announcedResetCredits ?? []).contains($0.id)
+            }
+            if !expiring.isEmpty {
+                alerts.append(.init(source: observation.source, sourceTitle: observation.title, kind: .resetCreditExpiry,
+                                    details: expiring.compactMap { $0.expiresAt.map { L10n.date($0) } }.joined(separator: " · "),
+                                    levelIDs: Set(expiring.map(\.id))))
+                state.announcedResetCredits = (state.announcedResetCredits ?? []).union(expiring.map(\.id))
+            }
         case let .failure(credentials, terminal):
             if credentials {
                 state.failures = 0
@@ -142,6 +162,7 @@ struct LocalNotificationPolicy: Codable, Equatable {
         case .recovery: states[alert.source]?.low.formUnion(alert.levelIDs)
         case .refreshFailure: states[alert.source]?.announcedFailure = false
         case .signIn: states[alert.source]?.announcedSignIn = false
+        case .resetCreditExpiry: states[alert.source]?.announcedResetCredits?.subtract(alert.levelIDs)
         }
     }
 }
@@ -262,7 +283,7 @@ enum SystemLocalNotifications {
             for observation in observations {
                 guard !Task.isCancelled, id == self.generation, self.preferences.enabled else { break }
                 guard self.activeSources.contains(observation.source) else { continue }
-                let alerts = self.policy.evaluate(observation, preferences: self.preferences)
+                let alerts = self.policy.evaluate(observation, preferences: self.preferences, now: now)
                 for alert in alerts {
                     guard self.preferences.kinds.contains(alert.kind), self.activeSources.contains(alert.source),
                           !Task.isCancelled, self.authorization == .allowed else {
