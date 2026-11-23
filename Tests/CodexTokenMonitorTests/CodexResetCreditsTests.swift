@@ -210,8 +210,8 @@ func readsActualCodexResetCreditsWithoutRedeeming() async throws {
     let suite = "reset-preview-\(UUID())", defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let snapshot = CodexResetCredits(availableCount: 2, applicableCount: 0, credits: [
-        .init(id: "first", expiresAt: .now.addingTimeInterval(9 * 86400)),
-        .init(id: "later", expiresAt: .now.addingTimeInterval(20 * 86400))])
+        .init(id: "first", expiresAt: .now.addingTimeInterval(9.0 * 86400)),
+        .init(id: "later", expiresAt: .now.addingTimeInterval(20.0 * 86400))])
     let model = UsageModel(defaults: defaults, readUsage: {
         .init(primary: .init(usedPercent: 24, resetsAt: 1900000000), secondary: .init(usedPercent: 48, resetsAt: 1900300000),
               planName: "Pro", additional: [], resetCredits: snapshot)
